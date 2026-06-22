@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Dashboard — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header">
+        <div class="page-title" id="greeting">Dashboard</div>
+        <div class="page-subtitle" id="belt-status"></div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stat-grid" id="student-stats">
+        ${[0,1,2,3].map(() => `<div class="stat-card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-title mt-2"></div></div>`).join('')}
+      </div>
+
+      <!-- Belt progress + recent activity -->
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem" id="panels">
+        <div class="card"><div class="skeleton skeleton-card"></div></div>
+        <div class="card"><div class="skeleton skeleton-card"></div></div>
+      </div>
+
+      <!-- Recent notifications -->
+      <div class="card mt-6">
+        <div class="card-header">
+          <div class="card-title">Recent Notifications</div>
+          <a href="/pages/notifications.html" class="btn btn-ghost btn-sm">All</a>
+        </div>
+        <div id="notif-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api, { store } from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth(['student']);
+  await initShell({ title: 'My Dashboard' });
+
+  document.getElementById('greeting').textContent = `Welcome back, ${user.first_name}! 👊`;
+
+  // Load student profile, attendance, points in parallel
+  const [profileRes, attRes, pointsRes, eligRes, notifRes] = await Promise.all([
+    api.students.get(user.id),
+    api.students.attendance(user.id),
+    api.students.points(user.id),
+    api.students.eligibility(user.id),
+    api.notifications.list({ unread: true }),
+  ]);
+
+  const profile = profileRes.data?.student;
+  const attSum  = attRes.data?.summary || {};
+  const points  = pointsRes.data?.total || 0;
+  const elig    = eligRes.data;
+
+  // Belt status subtitle
+  if (profile?.belt_name) {
+    document.getElementById('belt-status').innerHTML = `
+      ${ui.beltDot(profile.belt_color, profile.belt_name)} Current belt: <strong>${profile.belt_name}</strong>
+    `;
+  } else {
+    document.getElementById('belt-status').textContent = 'No belt assigned yet.';
+  }
+
+  // Stats
+  document.getElementById('student-stats').innerHTML = `
+    <div class="stat-card fade-up">
+      <div class="stat-label">Attendance</div>
+      <div class="stat-value ${attSum.percentage >= 80 ? 'text-success' : 'text-warning'}">${attSum.percentage ?? 0}%</div>
+      <div class="stat-change">${attSum.present ?? 0} of ${attSum.total ?? 0} classes</div>
+    </div>
+    <div class="stat-card fade-up">
+      <div class="stat-label">Points</div>
+      <div class="stat-value text-accent">${points}</div>
+      <div class="stat-change">Total earned</div>
+    </div>
+    <div class="stat-card fade-up">
+      <div class="stat-label">Discipline</div>
+      <div class="stat-value">${profile?.discipline_name || '—'}</div>
+    </div>
+    <div class="stat-card fade-up">
+      <div class="stat-label">Belt Ready</div>
+      <div class="stat-value ${elig?.eligible ? 'text-success' : ''}">${elig?.eligible ? '✓ Yes' : 'Not yet'}</div>
+    </div>
+  `;
+
+  // Belt progress panel
+  const nextBelt = elig?.next_belt;
+  const beltPanel = nextBelt ? `
+    <div class="card-header">
+      <div>
+        <div class="card-title">Next Belt: ${nextBelt.name}</div>
+        <div class="card-subtitle" style="display:flex;align-items:center;gap:6px">
+          ${ui.beltDot(nextBelt.color_hex, nextBelt.name)} Target
+        </div>
+      </div>
+      ${elig.eligible ? `<span class="badge badge-green">Eligible!</span>` : ''}
+    </div>
+    ${Object.entries(elig.checks || {}).map(([key, c]) => `
+      <div style="margin-bottom:0.75rem">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm">${key.replace('_',' ')}</span>
+          <span class="${c.pass ? 'text-success' : 'text-danger'} text-xs">${c.pass ? '✓' : '✗'}</span>
+        </div>
+        ${key !== 'skills' ? ui.progressBar(c.value / c.required * 100) : ui.progressBar(c.total > 0 ? c.completed / c.total * 100 : 100)}
+        <div class="text-xs text-dimmed mt-1">
+          ${key === 'skills' ? `${c.completed}/${c.total} skills` : `${c.value} / ${c.required}`}
+        </div>
+      </div>`).join('')}
+    <a href="/pages/belt-progress.html" class="btn btn-secondary w-full mt-2">View full checklist</a>
+  ` : `<div class="empty-state"><div class="empty-icon">🥋</div><div class="empty-title">At highest belt</div></div>`;
+
+  // Achievements panel
+  const achPanel = `
+    <div class="card-header">
+      <div class="card-title">Achievements</div>
+      <a href="/pages/achievements.html" class="btn btn-ghost btn-sm">All</a>
+    </div>
+    ${(profile?.achievements || []).length === 0
+      ? ui.empty('🏅', 'No achievements yet', 'Keep training to earn badges!')
+      : profile.achievements.slice(0, 4).map(a => `
+          <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+            <span style="font-size:1.5rem">${a.icon}</span>
+            <div>
+              <div class="font-medium text-sm">${a.label}</div>
+              <div class="text-xs text-dimmed">${ui.date(a.earned_at)}</div>
+            </div>
+          </div>`).join('')}
+  `;
+
+  document.getElementById('panels').innerHTML = `
+    <div class="card fade-up">${beltPanel}</div>
+    <div class="card fade-up">${achPanel}</div>
+  `;
+
+  // Notifications
+  const notifs = notifRes.data?.notifications || [];
+  const notifList = document.getElementById('notif-list');
+  if (notifs.length === 0) {
+    notifList.innerHTML = ui.empty('🔔', 'All caught up!', 'No unread notifications.');
+  } else {
+    notifList.innerHTML = notifs.slice(0, 5).map(n => `
+      <div class="flex items-center gap-3" style="padding:0.75rem 0;border-bottom:1px solid var(--color-border)">
+        <div class="flex-1">
+          <div class="font-medium text-sm">${n.title}</div>
+          <div class="text-xs text-dimmed">${n.body}</div>
+        </div>
+        <div class="text-xs text-dimmed">${ui.relativeTime(n.created_at)}</div>
+      </div>`).join('');
+  }
+</script>
+</body>
+</html>
