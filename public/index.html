@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<script type="module">
+  import { store } from '/js/api.js';
+  const user = store.user;
+  const map = {
+    admin:      '/pages/admin-dashboard.html',
+    head_coach: '/pages/hc-dashboard.html',
+    coach:      '/pages/coach-dashboard.html',
+    student:    '/pages/student-dashboard.html',
+  };
+  if (user && store.accessToken) {
+    window.location.replace(map[user.role] || '/login.html');
+  } else {
+    window.location.replace('/login.html');
+  }
+</script>
+</body>
+</html>

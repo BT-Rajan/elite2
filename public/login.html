@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+
+    <div class="login-logo">
+      <div class="login-logo-mark">E2</div>
+      <div>
+        <div class="font-bold" style="font-size:var(--text-xl)">Elite 2.0</div>
+        <div class="text-dimmed text-sm">Academy Management</div>
+      </div>
+    </div>
+
+    <div class="login-heading">Welcome back</div>
+    <div class="login-sub">Sign in to your academy account</div>
+
+    <div class="login-form" id="login-form">
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input type="email" id="email" class="input" placeholder="you@academy.com" autocomplete="email" autofocus required>
+      </div>
+
+      <div class="form-group">
+        <label for="password">
+          Password
+          <a href="/pages/forgot-password.html" class="text-accent" style="float:right;font-weight:400">Forgot password?</a>
+        </label>
+        <input type="password" id="password" class="input" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+
+      <div id="login-error" class="form-error hidden"></div>
+
+      <button type="button" class="btn btn-primary btn-lg w-full" id="login-btn">Sign in</button>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+  import api, { store } from '/js/api.js';
+
+  // Already logged in → redirect
+  if (store.accessToken && store.user) {
+    redirect(store.user.role);
+  }
+
+  function redirect(role) {
+    const map = {
+      admin:      '/pages/admin-dashboard.html',
+      head_coach: '/pages/hc-dashboard.html',
+      coach:      '/pages/coach-dashboard.html',
+      student:    '/pages/student-dashboard.html',
+    };
+    window.location.href = map[role] || '/pages/student-dashboard.html';
+  }
+
+  const btn   = document.getElementById('login-btn');
+  const err   = document.getElementById('login-error');
+  const email = document.getElementById('email');
+  const pass  = document.getElementById('password');
+
+  function showError(msg) {
+    err.textContent = msg;
+    err.classList.remove('hidden');
+  }
+
+  async function doLogin() {
+    err.classList.add('hidden');
+    const e = email.value.trim();
+    const p = pass.value;
+
+    if (!e || !p) { showError('Email and password are required.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    const { data, error } = await api.auth.login(e, p);
+
+    if (error || !data) {
+      showError(error || 'Sign in failed. Try again.');
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      return;
+    }
+
+    store.accessToken  = data.access_token;
+    store.refreshToken = data.refresh_token;
+    store.user         = data.user;
+    redirect(data.user.role);
+  }
+
+  btn.addEventListener('click', doLogin);
+  document.getElementById('login-form').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+</script>
+</body>
+</html>
