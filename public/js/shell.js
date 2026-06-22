@@ -1,0 +1,187 @@
+/**
+ * Elite 2.0 — App Shell
+ * Renders the sidebar + topbar, handles navigation, mobile toggle.
+ * Import on every authenticated page.
+ */
+
+import api, { store } from './api.js';
+import ui from './ui.js';
+
+const NAV = {
+  admin: [
+    { href: '/pages/admin-dashboard.html', icon: '⊞', label: 'Dashboard' },
+    { href: '/pages/users.html',            icon: '👥', label: 'Users' },
+    { href: '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
+    { href: '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
+    { href: '/pages/settings.html',         icon: '⚙', label: 'Settings' },
+    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+  ],
+  head_coach: [
+    { href: '/pages/hc-dashboard.html',     icon: '⊞', label: 'Dashboard' },
+    { href: '/pages/students.html',         icon: '👤', label: 'Students' },
+    { href: '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
+    { href: '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
+    { href: '/pages/evaluations.html',      icon: '📋', label: 'Evaluations' },
+    { href: '/pages/promotions.html',       icon: '⬆', label: 'Promotions' },
+    { href: '/pages/seminars.html',         icon: '🎓', label: 'Seminars' },
+    { href: '/pages/schedule.html',         icon: '📅', label: 'Schedule' },
+    { href: '/pages/reports.html',          icon: '📊', label: 'Reports' },
+    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+  ],
+  coach: [
+    { href: '/pages/coach-dashboard.html',  icon: '⊞', label: 'Dashboard' },
+    { href: '/pages/schedule.html',         icon: '📅', label: 'My Classes' },
+    { href: '/pages/attendance.html',       icon: '✓',  label: 'Attendance' },
+    { href: '/pages/students.html',         icon: '👤', label: 'Students' },
+    { href: '/pages/evaluations.html',      icon: '📋', label: 'Evaluations' },
+    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+  ],
+  student: [
+    { href: '/pages/student-dashboard.html',icon: '⊞', label: 'Dashboard' },
+    { href: '/pages/my-progress.html',      icon: '📈', label: 'My Progress' },
+    { href: '/pages/my-attendance.html',    icon: '✓',  label: 'Attendance' },
+    { href: '/pages/belt-progress.html',    icon: '🥋', label: 'Belt Progress' },
+    { href: '/pages/achievements.html',     icon: '🏆', label: 'Achievements' },
+    { href: '/pages/schedule.html',         icon: '📅', label: 'Schedule' },
+    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+  ],
+};
+
+/**
+ * Initialise the app shell on an authenticated page.
+ * @param {{ title?: string }} opts
+ */
+async function initShell(opts = {}) {
+  const user = store.user;
+  if (!user) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  _renderSidebar(user);
+  _renderTopbar(opts.title || document.title);
+  _highlightActive();
+  _initMobileToggle();
+  await _loadNotificationCount();
+}
+
+function _renderSidebar(user) {
+  const nav = NAV[user.role] || [];
+  const path = window.location.pathname;
+
+  const sidebar = document.createElement('aside');
+  sidebar.className = 'sidebar';
+  sidebar.id = 'sidebar';
+
+  sidebar.innerHTML = `
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-mark">E2</div>
+      <div>
+        <div class="sidebar-logo-text">Elite 2.0</div>
+        <div class="sidebar-logo-sub">Academy</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav">
+      ${nav.map(item => `
+        <a href="${item.href}" class="nav-item${path.endsWith(item.href.split('/').pop()) ? ' active' : ''}" data-href="${item.href}">
+          <span class="nav-icon">${item.icon}</span>
+          <span>${item.label}</span>
+          ${item.label === 'Notifications' ? '<span class="nav-badge hidden" id="notif-badge">0</span>' : ''}
+        </a>`).join('')}
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="user-menu-btn" title="Account menu">
+        ${ui.avatar({ name: user.first_name + ' ' + user.last_name, avatar: user.avatar, size: 'sm' })}
+        <div>
+          <div class="sidebar-user-name">${user.first_name} ${user.last_name}</div>
+          <div class="sidebar-user-role">${user.role.replace('_', ' ')}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.prepend(sidebar);
+
+  // User menu dropdown
+  document.getElementById('user-menu-btn').addEventListener('click', _showUserMenu);
+}
+
+function _renderTopbar(title) {
+  const topbar = document.createElement('header');
+  topbar.className = 'topbar';
+  topbar.innerHTML = `
+    <button class="btn btn-ghost btn-icon" id="sidebar-toggle" aria-label="Toggle menu">☰</button>
+    <div class="topbar-title">${title}</div>
+    <div class="topbar-actions" id="topbar-actions"></div>
+  `;
+  document.querySelector('.main')?.prepend(topbar);
+}
+
+function _highlightActive() {
+  const path = window.location.pathname;
+  document.querySelectorAll('.nav-item').forEach(a => {
+    const href = a.getAttribute('data-href') || a.getAttribute('href');
+    if (href && path.endsWith(href.split('/').pop())) {
+      a.classList.add('active');
+    } else {
+      a.classList.remove('active');
+    }
+  });
+}
+
+function _initMobileToggle() {
+  const btn = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  if (!btn || !sidebar) return;
+
+  btn.addEventListener('click', () => sidebar.classList.toggle('open'));
+
+  // Close on outside click
+  document.addEventListener('click', e => {
+    if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== btn) {
+      sidebar.classList.remove('open');
+    }
+  });
+}
+
+async function _loadNotificationCount() {
+  const { data } = await api.notifications.list({ unread: true });
+  const count = data?.unread_count || 0;
+  const badge = document.getElementById('notif-badge');
+  if (badge && count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.classList.remove('hidden');
+  }
+}
+
+function _showUserMenu() {
+  const existing = document.getElementById('user-dropdown');
+  if (existing) { existing.remove(); return; }
+
+  const menu = document.createElement('div');
+  menu.className = 'dropdown-menu';
+  menu.id = 'user-dropdown';
+  menu.style.cssText = 'position:fixed;bottom:72px;left:16px;width:200px;';
+
+  menu.innerHTML = `
+    <a href="/pages/profile.html" class="dropdown-item">👤 Profile</a>
+    <div class="divider" style="margin:4px 0"></div>
+    <div class="dropdown-item danger" id="logout-btn">🚪 Sign out</div>
+  `;
+
+  document.body.appendChild(menu);
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await api.auth.logout();
+    store.clear();
+    window.location.href = '/login.html';
+  });
+
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); }
+    });
+  }, 10);
+}
+
+export { initShell };
