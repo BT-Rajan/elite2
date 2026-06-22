@@ -1,0 +1,103 @@
+/* ============================================================
+   Elite 2.0 — Design Tokens
+   Single source of truth for all visual decisions.
+   Import first in styles.css. Never use hardcoded values in HTML.
+   ============================================================ */
+
+:root {
+  /* ── Brand palette ──────────────────────────────────────────
+     Dark sports-tech feel: near-black base, electric violet
+     accent, sharp white text, amber as a warm contrast signal.
+  */
+  --color-bg:           #0d0d12;
+  --color-surface:      #13131a;
+  --color-surface-2:    #1a1a24;
+  --color-surface-3:    #22222f;
+  --color-border:       rgba(255,255,255,0.08);
+  --color-border-hover: rgba(255,255,255,0.16);
+
+  --color-accent:       #7c5cfc;   /* electric violet */
+  --color-accent-hover: #9577fd;
+  --color-accent-dim:   rgba(124,92,252,0.15);
+  --color-accent-glow:  rgba(124,92,252,0.35);
+
+  --color-success:      #22c55e;
+  --color-success-dim:  rgba(34,197,94,0.15);
+  --color-warning:      #f59e0b;
+  --color-warning-dim:  rgba(245,158,11,0.15);
+  --color-danger:       #ef4444;
+  --color-danger-dim:   rgba(239,68,68,0.15);
+  --color-info:         #38bdf8;
+  --color-info-dim:     rgba(56,189,248,0.15);
+
+  --color-text:         #f0f0f8;
+  --color-text-2:       #9898b0;
+  --color-text-3:       #5e5e72;
+  --color-text-invert:  #0d0d12;
+
+  /* ── Typography ─────────────────────────────────────────────
+     Inter for UI. JetBrains Mono for data/numbers.
+  */
+  --font-ui:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
+
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.8125rem;  /* 13px */
+  --text-base: 0.9375rem;  /* 15px */
+  --text-lg:   1.0625rem;  /* 17px */
+  --text-xl:   1.25rem;    /* 20px */
+  --text-2xl:  1.5rem;     /* 24px */
+  --text-3xl:  1.875rem;   /* 30px */
+
+  --weight-normal:  400;
+  --weight-medium:  500;
+  --weight-semibold:600;
+  --weight-bold:    700;
+
+  --leading-tight:  1.2;
+  --leading-normal: 1.5;
+  --leading-loose:  1.75;
+
+  /* ── Spacing ─────────────────────────────────────────────── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ── Radius ──────────────────────────────────────────────── */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 16px rgba(0,0,0,0.45);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.55);
+  --shadow-accent: 0 0 24px var(--color-accent-glow);
+
+  /* ── Layout ──────────────────────────────────────────────── */
+  --sidebar-width:       220px;
+  --sidebar-width-mini:  64px;
+  --topbar-height:       56px;
+  --content-max-width:   1200px;
+
+  /* ── Transitions ─────────────────────────────────────────── */
+  --transition-fast:   0.12s ease;
+  --transition-base:   0.2s ease;
+  --transition-slow:   0.35s ease;
+
+  /* ── Z-index scale ───────────────────────────────────────── */
+  --z-base:    1;
+  --z-sticky:  100;
+  --z-drawer:  200;
+  --z-modal:   300;
+  --z-toast:   400;
+}
