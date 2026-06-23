@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Achievements — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header">
+        <div class="page-title">Achievements</div>
+        <div class="page-subtitle">Your badges, points, and milestones</div>
+      </div>
+
+      <!-- Points total banner -->
+      <div class="card mb-6" id="points-banner">
+        <div class="skeleton skeleton-text" style="width:30%"></div>
+        <div class="skeleton skeleton-title mt-2" style="width:20%"></div>
+      </div>
+
+      <!-- Achievements grid -->
+      <div class="card mb-6">
+        <div class="card-header"><div class="card-title">Badges Earned</div></div>
+        <div id="badge-grid" class="grid grid-3" style="gap:1rem"></div>
+      </div>
+
+      <!-- Points ledger -->
+      <div class="card" style="padding:0">
+        <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--color-border)">
+          <div class="card-title">Points History</div>
+        </div>
+        <div id="points-table"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api, { store } from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth(['student']);
+  await initShell({ title: 'Achievements' });
+
+  const [profileRes, pointsRes] = await Promise.all([
+    api.students.get(user.id),
+    api.students.points(user.id),
+  ]);
+
+  const profile  = profileRes.data?.student;
+  const points   = pointsRes.data?.points || [];
+  const total    = pointsRes.data?.total || 0;
+  const achievements = profile?.achievements || [];
+
+  // Points banner
+  document.getElementById('points-banner').innerHTML = `
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="stat-label">Total Points Earned</div>
+        <div class="stat-value text-accent" style="font-size:var(--text-3xl)">${total}</div>
+      </div>
+      <div style="font-size:3rem">⭐</div>
+    </div>
+    <div class="mt-4">${ui.progressBar(Math.min(100, total / 10), '')}</div>
+    <div class="text-xs text-dimmed mt-1">${total} points</div>
+  `;
+
+  // Achievements grid
+  const badgeGrid = document.getElementById('badge-grid');
+  if (achievements.length === 0) {
+    badgeGrid.innerHTML = ui.empty('🏅','No badges yet','Keep training to earn your first badge!');
+  } else {
+    badgeGrid.innerHTML = achievements.map(a => `
+      <div class="card card-sm" style="text-align:center;padding:1.25rem">
+        <div style="font-size:2.5rem;margin-bottom:0.5rem">${a.icon}</div>
+        <div class="font-semibold text-sm">${a.label}</div>
+        <div class="text-xs text-dimmed mt-1">${ui.date(a.earned_at)}</div>
+      </div>`).join('');
+  }
+
+  // Points table
+  const ptTable = document.getElementById('points-table');
+  if (points.length === 0) {
+    ptTable.innerHTML = ui.empty('💰','No points yet','Attend classes and earn points!');
+  } else {
+    const REASON_LABELS = {
+      attendance:     'Class Attendance',
+      perfect_month:  'Perfect Month',
+      seminar:        'Seminar Attendance',
+      promotion:      'Belt Promotion',
+      streak:         'Attendance Streak',
+      custom:         'Bonus Points',
+    };
+    ptTable.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Reason</th><th>Note</th><th>Points</th><th>Date</th></tr></thead>
+          <tbody>
+            ${points.map(p => `
+              <tr>
+                <td>${ui.badge(REASON_LABELS[p.reason] || p.reason, p.amount > 0 ? 'green' : 'red')}</td>
+                <td class="text-sm text-muted">${p.note || '—'}</td>
+                <td class="font-mono font-bold ${p.amount > 0 ? 'text-success' : 'text-danger'}">+${p.amount}</td>
+                <td class="text-sm text-muted">${ui.date(p.awarded_at)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+</script>
+</body>
+</html>

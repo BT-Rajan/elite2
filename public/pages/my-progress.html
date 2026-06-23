@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Progress — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header">
+        <div class="page-title">My Progress</div>
+        <div class="page-subtitle">Evaluation scores, skill trends, and coach feedback</div>
+      </div>
+
+      <!-- Latest eval summary -->
+      <div class="card mb-6" id="latest-eval">
+        <div class="skeleton skeleton-card"></div>
+      </div>
+
+      <!-- Evaluations history -->
+      <div class="card mb-6">
+        <div class="card-header">
+          <div class="card-title">Evaluation History</div>
+        </div>
+        <div id="eval-history"></div>
+      </div>
+
+      <!-- Coach notes -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Coach Notes</div>
+        </div>
+        <div id="coach-notes"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api, { store } from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth(['student']);
+  await initShell({ title: 'My Progress' });
+
+  const FIELDS = ['technique','fitness','discipline','focus','attitude','balance','reflex','speed','flexibility'];
+
+  const now = new Date();
+  const from = `${now.getFullYear() - 1}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const to   = now.toISOString().split('T')[0];
+
+  const [evalRes, notesRes] = await Promise.all([
+    api.evaluations.list({ student_id: user.id, from, to }),
+    api.students.notes(user.id),
+  ]);
+
+  const evals = evalRes.data?.evaluations || [];
+  const notes = notesRes.data?.notes || [];
+
+  // ── Latest evaluation summary ─────────────────────────────────────────────
+  const latestEl = document.getElementById('latest-eval');
+  if (evals.length === 0) {
+    latestEl.innerHTML = ui.empty('📋','No evaluations yet','Your coach has not submitted any evaluations yet.');
+  } else {
+    const latest = evals[0];
+    const score  = parseFloat(latest.overall);
+    latestEl.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-title">Latest Evaluation</div>
+          <div class="card-subtitle">${ui.date(latest.eval_date)} · by ${latest.coach_name}</div>
+        </div>
+        <div class="text-right">
+          <div class="stat-value text-accent" style="font-size:var(--text-3xl)">${score.toFixed(1)}</div>
+          <div class="text-xs text-dimmed">/10 overall</div>
+        </div>
+      </div>
+      <div class="form-grid form-grid-3" style="gap:1rem 1.5rem;margin-top:0.5rem">
+        ${FIELDS.map(f => `
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-xs text-muted" style="text-transform:capitalize">${f}</span>
+              <span class="font-mono text-xs">${latest[f]}/10</span>
+            </div>
+            ${ui.progressBar(parseInt(latest[f]) * 10)}
+          </div>`).join('')}
+      </div>
+      ${latest.notes ? `<div class="form-group mt-4"><label>Coach notes</label><div class="text-sm text-muted" style="margin-top:4px">${latest.notes}</div></div>` : ''}
+    `;
+  }
+
+  // ── Evaluation history ────────────────────────────────────────────────────
+  const histEl = document.getElementById('eval-history');
+  if (evals.length === 0) {
+    histEl.innerHTML = `<div class="text-sm text-dimmed" style="padding:0.5rem 0">No evaluations found.</div>`;
+  } else {
+    histEl.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Overall</th><th>Top Score</th><th>Coach</th></tr>
+          </thead>
+          <tbody>
+            ${evals.map(e => {
+              const score   = parseFloat(e.overall);
+              const topField = FIELDS.reduce((best, f) => parseInt(e[f]) > parseInt(e[best]) ? f : best, FIELDS[0]);
+              return `
+              <tr>
+                <td class="text-sm font-mono">${ui.date(e.eval_date)}</td>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold font-mono ${score >= 8 ? 'text-success' : score >= 6 ? '' : 'text-danger'}">${score.toFixed(1)}</span>
+                    <span class="text-dimmed text-xs">/10</span>
+                  </div>
+                </td>
+                <td><span class="badge badge-purple" style="text-transform:capitalize">${topField} ${e[topField]}/10</span></td>
+                <td class="text-sm text-muted">${e.coach_name}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── Coach notes ───────────────────────────────────────────────────────────
+  const notesEl = document.getElementById('coach-notes');
+  if (notes.length === 0) {
+    notesEl.innerHTML = ui.empty('💬','No notes yet','Your coach has not written any notes yet.');
+  } else {
+    notesEl.innerHTML = notes.map(n => `
+      <div style="padding:1rem 0;border-bottom:1px solid var(--color-border)">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium text-accent">${n.coach_name}</span>
+          <span class="text-xs text-dimmed">${ui.date(n.created_at)}</span>
+        </div>
+        <div class="text-sm" style="line-height:var(--leading-loose)">${n.body}</div>
+      </div>`).join('');
+  }
+</script>
+</body>
+</html>

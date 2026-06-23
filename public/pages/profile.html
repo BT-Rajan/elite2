@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header">
+        <div class="page-title">My Profile</div>
+        <div class="page-subtitle">Update your account details</div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+
+        <!-- Profile info -->
+        <div class="card" id="profile-card">
+          <div class="card-header"><div class="card-title">Account Details</div></div>
+          <div id="profile-form">
+            <div class="skeleton skeleton-card"></div>
+          </div>
+        </div>
+
+        <!-- Change password -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">Change Password</div></div>
+          <div class="form-group mb-4">
+            <label>Current Password</label>
+            <input type="password" class="input" id="cur-pw" placeholder="Current password">
+          </div>
+          <div class="form-group mb-4">
+            <label>New Password</label>
+            <input type="password" class="input" id="new-pw" placeholder="Min 8 characters">
+          </div>
+          <div class="form-group mb-6">
+            <label>Confirm New Password</label>
+            <input type="password" class="input" id="conf-pw" placeholder="Repeat new password">
+          </div>
+          <div class="form-error hidden" id="pw-err"></div>
+          <button class="btn btn-primary w-full" id="pw-btn">Update Password</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api, { store } from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth();
+  await initShell({ title: 'Profile' });
+
+  // Load current user data
+  const { data } = await api.auth.me();
+  const u = data?.user || user;
+
+  document.getElementById('profile-form').innerHTML = `
+    <div class="flex items-center gap-4 mb-6">
+      ${ui.avatar({ name: u.first_name + ' ' + u.last_name, avatar: u.avatar, size: 'xl' })}
+      <div>
+        <div class="font-bold text-lg">${u.first_name} ${u.last_name}</div>
+        <div class="text-sm text-muted">${u.email}</div>
+        <div class="mt-1">${ui.roleBadge(u.role)}</div>
+      </div>
+    </div>
+    <div class="form-group mb-4">
+      <label>First Name</label>
+      <input class="input" id="p-fn" value="${u.first_name}">
+    </div>
+    <div class="form-group mb-4">
+      <label>Last Name</label>
+      <input class="input" id="p-ln" value="${u.last_name}">
+    </div>
+    <div class="form-group mb-6">
+      <label>Phone</label>
+      <input class="input" id="p-ph" value="${u.phone || ''}">
+    </div>
+    <div class="form-error hidden" id="p-err"></div>
+    <button class="btn btn-primary w-full" id="p-save">Save Changes</button>
+  `;
+
+  document.getElementById('p-save').addEventListener('click', async () => {
+    const saveBtn = document.getElementById('p-save');
+    const errEl   = document.getElementById('p-err');
+    errEl.classList.add('hidden');
+    ui.setLoading(saveBtn, true);
+
+    const { error } = await api.auth.updateProfile({
+      first_name: document.getElementById('p-fn').value.trim(),
+      last_name:  document.getElementById('p-ln').value.trim(),
+      phone:      document.getElementById('p-ph').value.trim(),
+    });
+    ui.setLoading(saveBtn, false, 'Save Changes');
+
+    if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+
+    // Update local store
+    const updated = { ...store.user, first_name: document.getElementById('p-fn').value.trim(), last_name: document.getElementById('p-ln').value.trim() };
+    store.user = updated;
+    ui.toast.success('Profile updated.');
+  });
+
+  // Change password
+  document.getElementById('pw-btn').addEventListener('click', async () => {
+    const pwBtn = document.getElementById('pw-btn');
+    const errEl = document.getElementById('pw-err');
+    errEl.classList.add('hidden');
+
+    const cur  = document.getElementById('cur-pw').value;
+    const next = document.getElementById('new-pw').value;
+    const conf = document.getElementById('conf-pw').value;
+
+    if (!cur || !next || !conf) { errEl.textContent = 'All fields are required.'; errEl.classList.remove('hidden'); return; }
+    if (next !== conf) { errEl.textContent = 'New passwords do not match.'; errEl.classList.remove('hidden'); return; }
+    if (next.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; errEl.classList.remove('hidden'); return; }
+
+    ui.setLoading(pwBtn, true);
+    const { error } = await api.auth.changePassword(cur, next);
+    ui.setLoading(pwBtn, false, 'Update Password');
+
+    if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+
+    ui.toast.success('Password updated. Please log in again.');
+    document.getElementById('cur-pw').value = '';
+    document.getElementById('new-pw').value = '';
+    document.getElementById('conf-pw').value = '';
+  });
+</script>
+</body>
+</html>

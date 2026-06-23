@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header">
+        <div class="page-title">Reports</div>
+        <div class="page-subtitle">Academy-wide analytics and performance reports</div>
+      </div>
+
+      <!-- Date range -->
+      <div class="search-bar mb-6">
+        <input type="date" class="input" id="from-date" style="width:160px">
+        <span class="text-muted text-sm">to</span>
+        <input type="date" class="input" id="to-date" style="width:160px">
+        <button class="btn btn-primary" id="run-btn">Run Report</button>
+      </div>
+
+      <!-- Summary stats -->
+      <div class="stat-grid mb-6" id="summary-stats">
+        ${Array.from({length:4},()=>`<div class="stat-card"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-title mt-2"></div></div>`).join('')}
+      </div>
+
+      <!-- Low attendance -->
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Low Attendance Students</div>
+            <span class="badge badge-red" id="low-count">—</span>
+          </div>
+          <div id="low-att-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Promotion Pipeline</div>
+            <span class="badge badge-green" id="promo-count">—</span>
+          </div>
+          <div id="promo-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  guardAuth(['admin','head_coach']);
+  await initShell({ title: 'Reports' });
+
+  const now = new Date();
+  const fromEl = document.getElementById('from-date');
+  const toEl   = document.getElementById('to-date');
+  fromEl.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  toEl.value   = now.toISOString().split('T')[0];
+
+  document.getElementById('run-btn').addEventListener('click', load);
+
+  async function load() {
+    document.getElementById('run-btn').textContent = 'Loading…';
+    document.getElementById('run-btn').disabled = true;
+
+    const { data, error } = await api.analytics.dashboard();
+
+    document.getElementById('run-btn').textContent = 'Run Report';
+    document.getElementById('run-btn').disabled = false;
+
+    if (error || !data) { ui.toast.error(error || 'Failed to load'); return; }
+
+    const t = data.totals;
+    document.getElementById('summary-stats').innerHTML = `
+      <div class="stat-card fade-up">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value text-accent">${t.students}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Coaches</div>
+        <div class="stat-value">${t.coaches}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Avg Attendance (30d)</div>
+        <div class="stat-value ${data.avg_attendance_30d >= 80 ? 'text-success' : 'text-warning'}">${data.avg_attendance_30d}%</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Pending Promotions</div>
+        <div class="stat-value">${t.pending_promotions}</div>
+      </div>
+    `;
+
+    const lowList  = document.getElementById('low-att-list');
+    const promoList = document.getElementById('promo-list');
+
+    document.getElementById('low-count').textContent  = data.low_attendance.length;
+    document.getElementById('promo-count').textContent = data.promotion_pipeline.length;
+
+    lowList.innerHTML = data.low_attendance.length === 0
+      ? ui.empty('✓','Great attendance!','No students below 70%.')
+      : data.low_attendance.map(s => `
+          <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+            ${ui.avatar({ name: s.name, size: 'sm' })}
+            <div class="flex-1">
+              <div class="text-sm font-medium">${s.name}</div>
+              ${ui.progressBar(s.pct, 'danger')}
+            </div>
+            <span class="font-mono text-sm text-danger">${s.pct}%</span>
+          </div>`).join('');
+
+    promoList.innerHTML = data.promotion_pipeline.length === 0
+      ? ui.empty('🥋','No candidates','No students near promotion eligibility.')
+      : data.promotion_pipeline.map(s => `
+          <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+            ${ui.avatar({ name: s.name, size: 'sm' })}
+            <div class="flex-1">
+              <div class="text-sm font-medium">${s.name}</div>
+              <div class="flex items-center gap-2 text-xs text-dimmed">
+                ${ui.beltDot(s.color_hex, s.current_belt)} ${s.current_belt || 'No belt'}
+              </div>
+            </div>
+            <a href="/pages/belt-progress.html?id=${s.id}" class="btn btn-ghost btn-sm">View</a>
+          </div>`).join('');
+  }
+
+  load();
+</script>
+</body>
+</html>

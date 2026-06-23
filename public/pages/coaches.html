@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coaches — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Coaches</div>
+          <div class="page-subtitle">Manage coaches and their student assignments</div>
+        </div>
+        <button class="btn btn-primary" id="add-coach-btn">+ Add Coach</button>
+      </div>
+
+      <div id="coach-grid" class="grid" style="gap:1.25rem"></div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  guardAuth(['admin','head_coach']);
+  await initShell({ title: 'Coaches' });
+
+  const grid = document.getElementById('coach-grid');
+
+  async function load() {
+    grid.innerHTML = Array.from({length:3},()=>`<div class="skeleton skeleton-card"></div>`).join('');
+    const { data, error } = await api.admin.coaches();
+    const coaches = data?.coaches || [];
+
+    if (error || coaches.length === 0) {
+      grid.innerHTML = error ? ui.empty('⚠','Error',error) : ui.empty('🏅','No coaches','Add a coach to get started.');
+      return;
+    }
+
+    grid.innerHTML = coaches.map(c => `
+      <div class="card card-hover">
+        <div class="flex items-center gap-3 mb-4">
+          ${ui.avatar({ name: c.first_name + ' ' + c.last_name, size: 'lg' })}
+          <div class="flex-1">
+            <div class="font-bold">${c.first_name} ${c.last_name}</div>
+            <div class="text-sm text-muted">${c.email}</div>
+            ${c.phone ? `<div class="text-xs text-dimmed">${c.phone}</div>` : ''}
+          </div>
+          ${c.is_active ? ui.badge('Active','green') : ui.badge('Inactive','gray')}
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary flex-1 btn-sm" onclick="viewStudents(${c.id},'${c.first_name} ${c.last_name}')">Students</button>
+          <button class="btn btn-secondary btn-sm" onclick="assignStudentModal(${c.id},'${c.first_name}')">+ Assign</button>
+        </div>
+      </div>`).join('');
+  }
+
+  window.viewStudents = async (coachId, coachName) => {
+    const { data } = await api.admin.coachStudents(coachId);
+    const students = data?.students || [];
+
+    const { body } = ui.modal({ title: `${coachName}'s Students`, size: 'lg' });
+    body.innerHTML = students.length === 0
+      ? ui.empty('👤','No students assigned','Use + Assign to link students to this coach.')
+      : `<div class="table-wrap"><table>
+          <thead><tr><th>Student</th><th>Discipline</th><th>Belt</th><th></th></tr></thead>
+          <tbody>
+            ${students.map(s => `
+              <tr>
+                <td class="font-medium text-sm">${s.first_name} ${s.last_name}</td>
+                <td class="text-sm text-muted">${s.discipline||'—'}</td>
+                <td>
+                  <div class="flex items-center gap-2">
+                    ${ui.beltDot('#888',s.belt)} <span class="text-sm">${s.belt||'No belt'}</span>
+                  </div>
+                </td>
+                <td><button class="btn btn-danger btn-sm" onclick="unassign(${coachId},${s.id},'${s.first_name}')">Remove</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+  };
+
+  window.unassign = async (coachId, studentId, name) => {
+    const ok = await ui.confirm({ title: 'Remove Student', message: `Remove ${name} from this coach?`, confirmText: 'Remove', danger: true });
+    if (!ok) return;
+    const { error } = await api.admin.unassignStudent(coachId, studentId);
+    if (error) { ui.toast.error(error); return; }
+    ui.toast.success(`${name} removed.`);
+    document.querySelector('.modal-overlay')?.remove();
+    setTimeout(() => viewStudents(coachId, ''), 100);
+  };
+
+  window.assignStudentModal = async (coachId, coachName) => {
+    const { data } = await api.students.list({});
+    const students = data?.students || [];
+
+    const { body, close } = ui.modal({ title: `Assign Student to ${coachName}` });
+    body.innerHTML = `
+      <div class="form-group">
+        <label>Student</label>
+        <select class="select" id="as-student">
+          <option value="">Select student</option>
+          ${students.map(s => `<option value="${s.id}">${s.first_name} ${s.last_name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="as-cancel">Cancel</button>
+        <button class="btn btn-primary" id="as-save">Assign</button>
+      </div>`;
+    document.getElementById('as-cancel').onclick = close;
+    document.getElementById('as-save').onclick = async () => {
+      const studentId = document.getElementById('as-student').value;
+      if (!studentId) { ui.toast.warning('Select a student.'); return; }
+      const { error } = await api.admin.assignStudent(coachId, parseInt(studentId));
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Student assigned.'); close();
+    };
+  };
+
+  // ── Add coach ──────────────────────────────────────────────────────────────
+  document.getElementById('add-coach-btn').addEventListener('click', () => {
+    const { body, close } = ui.modal({ title: 'Add Coach' });
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem">
+        <div class="form-group"><label>First Name</label><input class="input" id="ac-fn" placeholder="First name"></div>
+        <div class="form-group"><label>Last Name</label><input class="input" id="ac-ln" placeholder="Last name"></div>
+        <div class="form-group"><label>Email</label><input type="email" class="input" id="ac-em" placeholder="Email"></div>
+        <div class="form-group"><label>Phone</label><input class="input" id="ac-ph" placeholder="Phone"></div>
+        <div class="form-group" style="grid-column:1/-1"><label>Password</label><input type="password" class="input" id="ac-pw" placeholder="Temporary password (min 8 chars)"></div>
+      </div>
+      <div class="form-error hidden" id="ac-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="ac-cancel">Cancel</button>
+        <button class="btn btn-primary" id="ac-save">Add Coach</button>
+      </div>`;
+    document.getElementById('ac-cancel').onclick = close;
+    document.getElementById('ac-save').onclick = async () => {
+      const saveBtn = document.getElementById('ac-save');
+      const errEl   = document.getElementById('ac-err');
+      errEl.classList.add('hidden');
+      ui.setLoading(saveBtn, true);
+      const { error } = await api.auth.register({
+        first_name: document.getElementById('ac-fn').value,
+        last_name:  document.getElementById('ac-ln').value,
+        email:      document.getElementById('ac-em').value,
+        phone:      document.getElementById('ac-ph').value,
+        password:   document.getElementById('ac-pw').value,
+        role: 'coach',
+      });
+      ui.setLoading(saveBtn, false, 'Add Coach');
+      if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+      ui.toast.success('Coach added.'); close(); load();
+    };
+  });
+
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seminars — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Seminars</div>
+          <div class="page-subtitle">Special events and attendance tracking</div>
+        </div>
+        <button class="btn btn-primary hidden" id="add-seminar-btn">+ Add Seminar</button>
+      </div>
+
+      <div id="seminar-list"></div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth();
+  await initShell({ title: 'Seminars' });
+
+  const canManage = ['admin','head_coach'].includes(user.role);
+  if (canManage) document.getElementById('add-seminar-btn').classList.remove('hidden');
+
+  const listEl = document.getElementById('seminar-list');
+
+  async function load() {
+    listEl.innerHTML = Array.from({length:3},()=>`<div class="skeleton skeleton-card mb-4"></div>`).join('');
+    const { data, error } = await api.seminars.list();
+    const seminars = data?.seminars || [];
+
+    if (error) { listEl.innerHTML = ui.empty('⚠','Error',error); return; }
+    if (seminars.length === 0) { listEl.innerHTML = ui.empty('🎓','No seminars scheduled','Seminars can be created by a Head Coach or Admin.'); return; }
+
+    listEl.innerHTML = seminars.map(s => {
+      const isPast = new Date(s.date) < new Date();
+      return `
+        <div class="card mb-4 fade-up">
+          <div class="card-header">
+            <div>
+              <div class="card-title">${s.title}</div>
+              <div class="card-subtitle flex items-center gap-3">
+                <span>📅 ${ui.date(s.date)}</span>
+                ${s.location ? `<span>📍 ${s.location}</span>` : ''}
+                <span class="badge badge-purple">+${s.points} pts</span>
+              </div>
+            </div>
+            ${canManage && !isPast ? `<button class="btn btn-primary btn-sm" onclick="markAttendanceModal(${s.id},'${s.title}')">Mark Attendance</button>` : isPast ? `<span class="badge badge-gray">Past</span>` : ''}
+          </div>
+          ${s.description ? `<p class="text-sm text-muted">${s.description}</p>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  window.markAttendanceModal = async (seminarId, title) => {
+    const { data } = await api.students.list({});
+    const students = data?.students || [];
+
+    const { body, close } = ui.modal({ title: `Attendance — ${title}`, size: 'lg' });
+    body.innerHTML = `
+      <div class="text-sm text-muted mb-4">Check all students who attended this seminar. Points will be awarded automatically.</div>
+      <div id="seminar-students">
+        ${students.map(s => `
+          <label class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border);cursor:pointer">
+            <input type="checkbox" data-id="${s.id}" style="width:16px;height:16px;accent-color:var(--color-accent)">
+            ${ui.avatar({ name: s.first_name + ' ' + s.last_name, size: 'sm' })}
+            <span class="text-sm font-medium">${s.first_name} ${s.last_name}</span>
+          </label>`).join('')}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="sm-cancel">Cancel</button>
+        <button class="btn btn-primary" id="sm-save">Save Attendance</button>
+      </div>`;
+
+    document.getElementById('sm-cancel').onclick = close;
+    document.getElementById('sm-save').onclick = async () => {
+      const saveBtn = document.getElementById('sm-save');
+      ui.setLoading(saveBtn, true);
+      const checked = [...document.querySelectorAll('[data-id]:checked')];
+      let count = 0;
+      for (const cb of checked) {
+        const { error } = await api.seminars.markAttend(seminarId, parseInt(cb.dataset.id));
+        if (!error) count++;
+      }
+      ui.setLoading(saveBtn, false, 'Save Attendance');
+      ui.toast.success(`${count} student${count !== 1 ? 's' : ''} marked and points awarded.`);
+      close();
+    };
+  };
+
+  // ── Add seminar ────────────────────────────────────────────────────────────
+  document.getElementById('add-seminar-btn').addEventListener('click', () => {
+    const { body, close } = ui.modal({ title: 'Add Seminar' });
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem">
+        <div class="form-group" style="grid-column:1/-1"><label>Title</label><input class="input" id="sm-title" placeholder="Seminar title"></div>
+        <div class="form-group"><label>Date</label><input type="date" class="input" id="sm-date"></div>
+        <div class="form-group"><label>Location</label><input class="input" id="sm-loc" placeholder="Location (optional)"></div>
+        <div class="form-group"><label>Points Awarded</label><input type="number" class="input" id="sm-pts" value="50" min="0"></div>
+        <div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea class="textarea" id="sm-desc" rows="2" placeholder="Optional description"></textarea></div>
+      </div>
+      <div class="form-error hidden" id="sm-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="sm-cancel">Cancel</button>
+        <button class="btn btn-primary" id="sm-save">Add Seminar</button>
+      </div>`;
+    document.getElementById('sm-cancel').onclick = close;
+    document.getElementById('sm-save').onclick = async () => {
+      const saveBtn = document.getElementById('sm-save');
+      ui.setLoading(saveBtn, true);
+      const { error } = await api.seminars.create({
+        title:       document.getElementById('sm-title').value,
+        date:        document.getElementById('sm-date').value,
+        location:    document.getElementById('sm-loc').value || null,
+        points:      parseInt(document.getElementById('sm-pts').value),
+        description: document.getElementById('sm-desc').value || null,
+      });
+      ui.setLoading(saveBtn, false, 'Add Seminar');
+      if (error) { document.getElementById('sm-err').textContent = error; document.getElementById('sm-err').classList.remove('hidden'); return; }
+      ui.toast.success('Seminar added.'); close(); load();
+    };
+  });
+
+  load();
+</script>
+</body>
+</html>
