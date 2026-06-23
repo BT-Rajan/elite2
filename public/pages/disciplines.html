@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Curriculum — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Curriculum</div>
+          <div class="page-subtitle">Disciplines, belt hierarchy, and required skills</div>
+        </div>
+        <button class="btn btn-primary" id="add-disc-btn">+ Add Discipline</button>
+      </div>
+
+      <div id="disciplines-grid" class="grid" style="gap:1.5rem"></div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  guardAuth(['admin','head_coach']);
+  await initShell({ title: 'Curriculum' });
+
+  const grid = document.getElementById('disciplines-grid');
+
+  async function loadDisciplines() {
+    grid.innerHTML = Array.from({length:3},()=>`<div class="skeleton skeleton-card"></div>`).join('');
+    const { data, error } = await api.admin.disciplines();
+    if (error) { grid.innerHTML = ui.empty('⚠','Error',error); return; }
+    renderDiscs(data.disciplines || []);
+  }
+
+  function renderDiscs(disciplines) {
+    if (disciplines.length === 0) {
+      grid.innerHTML = ui.empty('🥋','No disciplines','Add a discipline to get started.');
+      return;
+    }
+    grid.innerHTML = disciplines.map(d => `
+      <div class="card" id="disc-${d.id}">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${d.name}</div>
+            ${d.description ? `<div class="card-subtitle">${d.description}</div>` : ''}
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" onclick="addBelt(${d.id},'${d.name}')">+ Belt</button>
+            <button class="btn btn-ghost btn-sm" onclick="editDisc(${d.id},'${d.name}','${d.description||''}')">Edit</button>
+          </div>
+        </div>
+        <div id="belts-${d.id}">
+          <div class="skeleton skeleton-row" style="margin:8px 0"></div>
+        </div>
+      </div>`).join('');
+
+    disciplines.forEach(d => loadBelts(d.id));
+  }
+
+  async function loadBelts(discId) {
+    const { data } = await api.admin.belts(discId);
+    const belts = data?.belts || [];
+    const el = document.getElementById(`belts-${discId}`);
+
+    if (belts.length === 0) {
+      el.innerHTML = `<div class="text-sm text-dimmed" style="padding:0.5rem 0">No belts defined yet.</div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="margin-top:0.5rem">
+        ${belts.map(b => `
+          <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)" id="belt-row-${b.id}">
+            <div style="width:16px;height:16px;border-radius:50%;background:${b.color_hex};border:1px solid rgba(255,255,255,0.2);flex-shrink:0"></div>
+            <div class="flex-1">
+              <div class="text-sm font-medium">${b.name}</div>
+              <div class="text-xs text-dimmed">Att ≥${b.min_attendance_pct}% · Eval ≥${b.min_eval_score} · Classes ≥${b.min_classes}</div>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost btn-sm" onclick="viewSkills(${b.id},'${b.name}')">Skills</button>
+              <button class="btn btn-ghost btn-sm" onclick="editBelt(${b.id},'${b.name}','${b.color_hex}',${b.min_attendance_pct},${b.min_eval_score},${b.min_classes})">Edit</button>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // ── Add discipline ─────────────────────────────────────────────────────────
+  document.getElementById('add-disc-btn').addEventListener('click', () => {
+    const { body, close } = ui.modal({ title: 'Add Discipline' });
+    body.innerHTML = `
+      <div class="form-group"><label>Name</label><input class="input" id="dn" placeholder="e.g. Kickboxing"></div>
+      <div class="form-group mt-4"><label>Description</label><input class="input" id="dd" placeholder="Optional description"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="dc">Cancel</button>
+        <button class="btn btn-primary" id="ds">Add</button>
+      </div>`;
+    document.getElementById('dc').onclick = close;
+    document.getElementById('ds').onclick = async () => {
+      const { error } = await api.admin.createDisc({ name: document.getElementById('dn').value, description: document.getElementById('dd').value });
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Discipline added.'); close(); loadDisciplines();
+    };
+  });
+
+  window.editDisc = (id, name, desc) => {
+    const { body, close } = ui.modal({ title: 'Edit Discipline' });
+    body.innerHTML = `
+      <div class="form-group"><label>Name</label><input class="input" id="edn" value="${name}"></div>
+      <div class="form-group mt-4"><label>Description</label><input class="input" id="edd" value="${desc}"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="edc">Cancel</button>
+        <button class="btn btn-primary" id="eds">Save</button>
+      </div>`;
+    document.getElementById('edc').onclick = close;
+    document.getElementById('eds').onclick = async () => {
+      const { error } = await api.admin.updateDisc?.(id, { name: document.getElementById('edn').value, description: document.getElementById('edd').value }) || { error: null };
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Saved.'); close(); loadDisciplines();
+    };
+  };
+
+  // ── Add belt ───────────────────────────────────────────────────────────────
+  window.addBelt = (discId, discName) => {
+    const { body, close } = ui.modal({ title: `Add Belt — ${discName}` });
+    body.innerHTML = beltForm();
+    document.getElementById('bf-cancel').onclick = close;
+    document.getElementById('bf-save').onclick = async () => {
+      const { error } = await api.admin.createBelt(discId, getBeltFormData());
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Belt added.'); close(); loadBelts(discId);
+    };
+  };
+
+  window.editBelt = (id, name, color, attPct, evalScore, classes) => {
+    const { body, close } = ui.modal({ title: 'Edit Belt' });
+    body.innerHTML = beltForm({ name, color_hex: color, min_attendance_pct: attPct, min_eval_score: evalScore, min_classes: classes });
+    document.getElementById('bf-cancel').onclick = close;
+    document.getElementById('bf-save').onclick = async () => {
+      const { error } = await api.patch(`/admin/belts/${id}`, getBeltFormData());
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Saved.'); close(); loadDisciplines();
+    };
+  };
+
+  function beltForm(v = {}) {
+    return `
+      <div class="form-grid form-grid-2" style="gap:1rem">
+        <div class="form-group"><label>Belt Name</label><input class="input" id="bf-name" value="${v.name||''}"></div>
+        <div class="form-group"><label>Color</label><input type="color" class="input" id="bf-color" value="${v.color_hex||'#ffffff'}" style="height:38px;padding:2px"></div>
+        <div class="form-group"><label>Min Attendance %</label><input type="number" class="input" id="bf-att" value="${v.min_attendance_pct||80}" min="0" max="100"></div>
+        <div class="form-group"><label>Min Eval Score (1-10)</label><input type="number" class="input" id="bf-eval" value="${v.min_eval_score||7}" min="1" max="10"></div>
+        <div class="form-group"><label>Min Classes</label><input type="number" class="input" id="bf-cls" value="${v.min_classes||0}" min="0"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="bf-cancel">Cancel</button>
+        <button class="btn btn-primary" id="bf-save">Save Belt</button>
+      </div>`;
+  }
+
+  function getBeltFormData() {
+    return {
+      name:               document.getElementById('bf-name').value,
+      color_hex:          document.getElementById('bf-color').value,
+      min_attendance_pct: parseInt(document.getElementById('bf-att').value),
+      min_eval_score:     parseInt(document.getElementById('bf-eval').value),
+      min_classes:        parseInt(document.getElementById('bf-cls').value),
+    };
+  }
+
+  // ── Belt skills ────────────────────────────────────────────────────────────
+  window.viewSkills = async (beltId, beltName) => {
+    const { data } = await api.admin.beltSkills(beltId);
+    const skills = data?.skills || [];
+
+    const { body, close } = ui.modal({ title: `Skills — ${beltName}`, size: 'lg' });
+
+    const render = (skillList) => {
+      const listEl = body.querySelector('#skill-list');
+      if (!listEl) return;
+      listEl.innerHTML = skillList.length === 0
+        ? `<div class="text-sm text-dimmed" style="padding:0.5rem 0">No skills defined for this belt.</div>`
+        : skillList.map(s => `
+            <div class="flex items-center justify-between" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+              <span class="text-sm">${s.name}</span>
+              <button class="btn btn-danger btn-sm" onclick="deleteSkill(${s.id},this.closest('div'))">Remove</button>
+            </div>`).join('');
+    };
+
+    body.innerHTML = `
+      <div id="skill-list">${skills.length === 0 ? '<div class="text-sm text-dimmed">No skills yet.</div>' : ''}</div>
+      <div class="flex gap-2 mt-4">
+        <input class="input flex-1" id="new-skill-name" placeholder="Skill name, e.g. Jab, Front Kick…">
+        <button class="btn btn-primary" id="add-skill-btn">Add</button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Done</button>
+      </div>`;
+
+    render(skills);
+
+    document.getElementById('add-skill-btn').onclick = async () => {
+      const name = document.getElementById('new-skill-name').value.trim();
+      if (!name) return;
+      const { error } = await api.admin.createSkill(beltId, { name });
+      if (error) { ui.toast.error(error); return; }
+      document.getElementById('new-skill-name').value = '';
+      const updated = await api.admin.beltSkills(beltId);
+      render(updated.data?.skills || []);
+    };
+
+    window.deleteSkill = async (id, rowEl) => {
+      const { error } = await api.admin.deleteSkill(id);
+      if (error) { ui.toast.error(error); return; }
+      rowEl?.remove();
+    };
+  };
+
+  loadDisciplines();
+</script>
+</body>
+</html>

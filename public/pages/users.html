@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Users</div>
+          <div class="page-subtitle" id="count-label">Loading…</div>
+        </div>
+        <button class="btn btn-primary" id="add-user-btn">+ Add User</button>
+      </div>
+
+      <!-- Filters -->
+      <div class="search-bar mb-6">
+        <div class="search-input-wrap flex-1">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="input" id="search" placeholder="Search by name or email…">
+        </div>
+        <select class="select" id="role-filter" style="width:160px">
+          <option value="">All roles</option>
+          <option value="admin">Admin</option>
+          <option value="head_coach">Head Coach</option>
+          <option value="coach">Coach</option>
+          <option value="student">Student</option>
+        </select>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div id="table-wrap">
+          <div style="padding:1.5rem">${Array.from({length:6},()=>`<div class="skeleton skeleton-row" style="margin-bottom:4px"></div>`).join('')}</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  guardAuth(['admin']);
+  await initShell({ title: 'Users' });
+
+  let _timer;
+  document.getElementById('search').addEventListener('input', () => { clearTimeout(_timer); _timer = setTimeout(load, 300); });
+  document.getElementById('role-filter').addEventListener('change', load);
+
+  async function load() {
+    const params = {};
+    const s = document.getElementById('search').value.trim();
+    const r = document.getElementById('role-filter').value;
+    if (s) params.search = s;
+    if (r) params.role = r;
+
+    document.getElementById('table-wrap').innerHTML = `<div style="padding:1.5rem">${Array.from({length:6},()=>`<div class="skeleton skeleton-row" style="margin-bottom:4px"></div>`).join('')}</div>`;
+
+    const { data, error } = await api.admin.users(params);
+    const users = data?.users || [];
+
+    document.getElementById('count-label').textContent = `${data?.total ?? 0} users`;
+
+    if (error || users.length === 0) {
+      document.getElementById('table-wrap').innerHTML = error
+        ? ui.empty('⚠','Error',error)
+        : ui.empty('👥','No users found','Try a different filter.');
+      return;
+    }
+
+    document.getElementById('table-wrap').innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>User</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr>
+                <td>
+                  <div class="flex items-center gap-3">
+                    ${ui.avatar({ name: u.first_name + ' ' + u.last_name, size: 'sm' })}
+                    <div>
+                      <div class="font-medium text-sm">${u.first_name} ${u.last_name}</div>
+                      <div class="text-xs text-dimmed">${u.email}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>${ui.roleBadge(u.role)}</td>
+                <td>${u.is_active ? ui.badge('Active','green') : ui.badge('Inactive','gray')}</td>
+                <td class="text-sm text-muted">${ui.date(u.created_at)}</td>
+                <td>
+                  <div class="flex gap-2 justify-end">
+                    <button class="btn btn-ghost btn-sm" onclick="editUser(${JSON.stringify(u).replace(/"/g,'&quot;')})">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="removeUser(${u.id},'${u.first_name}')">Remove</button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  window.editUser = (u) => {
+    const { body, close } = ui.modal({ title: `Edit — ${u.first_name} ${u.last_name}` });
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem">
+        <div class="form-group"><label>First Name</label><input class="input" id="u-fn" value="${u.first_name}"></div>
+        <div class="form-group"><label>Last Name</label><input class="input" id="u-ln" value="${u.last_name}"></div>
+        <div class="form-group"><label>Phone</label><input class="input" id="u-ph" value="${u.phone||''}"></div>
+        <div class="form-group">
+          <label>Role</label>
+          <select class="select" id="u-role">
+            ${['admin','head_coach','coach','student'].map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r.replace('_',' ')}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select class="select" id="u-active">
+            <option value="1" ${u.is_active?'selected':''}>Active</option>
+            <option value="0" ${!u.is_active?'selected':''}>Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="u-cancel">Cancel</button>
+        <button class="btn btn-primary" id="u-save">Save</button>
+      </div>`;
+    document.getElementById('u-cancel').onclick = close;
+    document.getElementById('u-save').onclick = async () => {
+      const { error } = await api.admin.updateUser(u.id, {
+        first_name: document.getElementById('u-fn').value,
+        last_name:  document.getElementById('u-ln').value,
+        phone:      document.getElementById('u-ph').value,
+        role:       document.getElementById('u-role').value,
+        is_active:  parseInt(document.getElementById('u-active').value),
+      });
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('User updated.'); close(); load();
+    };
+  };
+
+  window.removeUser = async (id, name) => {
+    const ok = await ui.confirm({ title: 'Deactivate User', message: `Deactivate ${name}? They will be unable to log in.`, confirmText: 'Deactivate', danger: true });
+    if (!ok) return;
+    const { error } = await api.admin.deleteUser(id);
+    if (error) { ui.toast.error(error); return; }
+    ui.toast.success(`${name} deactivated.`); load();
+  };
+
+  // ── Add user ───────────────────────────────────────────────────────────────
+  document.getElementById('add-user-btn').addEventListener('click', () => {
+    const { body, close } = ui.modal({ title: 'Add User' });
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem">
+        <div class="form-group"><label>First Name</label><input class="input" id="nu-fn" placeholder="First name"></div>
+        <div class="form-group"><label>Last Name</label><input class="input" id="nu-ln" placeholder="Last name"></div>
+        <div class="form-group"><label>Email</label><input class="input" id="nu-em" type="email" placeholder="Email"></div>
+        <div class="form-group"><label>Phone</label><input class="input" id="nu-ph" placeholder="Phone"></div>
+        <div class="form-group"><label>Password</label><input class="input" id="nu-pw" type="password" placeholder="Min 8 chars"></div>
+        <div class="form-group">
+          <label>Role</label>
+          <select class="select" id="nu-role">
+            <option value="student">Student</option>
+            <option value="coach">Coach</option>
+            <option value="head_coach">Head Coach</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-error hidden" id="nu-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="nu-cancel">Cancel</button>
+        <button class="btn btn-primary" id="nu-save">Create User</button>
+      </div>`;
+    document.getElementById('nu-cancel').onclick = close;
+    document.getElementById('nu-save').onclick = async () => {
+      const saveBtn = document.getElementById('nu-save');
+      const errEl   = document.getElementById('nu-err');
+      errEl.classList.add('hidden');
+      ui.setLoading(saveBtn, true);
+      const { error } = await api.auth.register({
+        first_name: document.getElementById('nu-fn').value,
+        last_name:  document.getElementById('nu-ln').value,
+        email:      document.getElementById('nu-em').value,
+        phone:      document.getElementById('nu-ph').value,
+        password:   document.getElementById('nu-pw').value,
+        role:       document.getElementById('nu-role').value,
+      });
+      ui.setLoading(saveBtn, false, 'Create User');
+      if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+      ui.toast.success('User created.'); close(); load();
+    };
+  });
+
+  load();
+</script>
+</body>
+</html>
