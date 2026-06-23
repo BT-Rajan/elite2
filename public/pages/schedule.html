@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Schedule</div>
+          <div class="page-subtitle">Weekly class timetable</div>
+        </div>
+        <button class="btn btn-primary hidden" id="add-class-btn">+ Add Class</button>
+      </div>
+
+      <div id="schedule-grid"></div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth();
+  await initShell({ title: 'Schedule' });
+
+  if (['admin','head_coach'].includes(user.role)) {
+    document.getElementById('add-class-btn').classList.remove('hidden');
+  }
+
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const TODAY = new Date().getDay();
+
+  const { data, error } = await api.classes.list();
+  const classes = data?.classes || [];
+
+  const scheduleEl = document.getElementById('schedule-grid');
+
+  if (error) { scheduleEl.innerHTML = ui.empty('⚠','Failed to load',error); return; }
+  if (classes.length === 0) {
+    scheduleEl.innerHTML = ui.empty('📅','No classes scheduled','Classes can be added by a Head Coach or Admin.');
+    return;
+  }
+
+  // Group by day
+  const byDay = {};
+  DAYS.forEach((d, i) => { byDay[i] = []; });
+  classes.forEach(c => { byDay[parseInt(c.day_of_week)]?.push(c); });
+
+  scheduleEl.innerHTML = DAYS.map((day, dow) => {
+    const dayClasses = byDay[dow] || [];
+    const isToday = dow === TODAY;
+    return `
+      <div class="card mb-4 ${isToday ? 'card-today' : ''}">
+        <div class="card-header">
+          <div class="flex items-center gap-2">
+            <div class="card-title">${day}</div>
+            ${isToday ? `<span class="badge badge-purple">Today</span>` : ''}
+          </div>
+          <span class="text-xs text-dimmed">${dayClasses.length} class${dayClasses.length !== 1 ? 'es' : ''}</span>
+        </div>
+        ${dayClasses.length === 0
+          ? `<div class="text-sm text-dimmed" style="text-align:center;padding:1rem">No classes</div>`
+          : dayClasses.map(c => `
+              <div class="flex items-center gap-4" style="padding:0.75rem 0;border-bottom:1px solid var(--color-border)">
+                <div style="width:80px;flex-shrink:0;text-align:center">
+                  <div class="font-mono text-sm text-accent">${c.start_time.slice(0,5)}</div>
+                  <div class="text-xs text-dimmed">${c.end_time.slice(0,5)}</div>
+                </div>
+                <div class="flex-1">
+                  <div class="font-medium text-sm">${c.title}</div>
+                  <div class="text-xs text-dimmed">${c.discipline_name} · ${c.coach_name}${c.location ? ' · ' + c.location : ''}</div>
+                </div>
+                ${user.role === 'coach' && isToday ? `
+                  <button class="btn btn-primary btn-sm" onclick="openAttendance(${c.id})">Take Attendance</button>
+                ` : ''}
+              </div>`).join('')}
+      </div>`;
+  }).join('');
+
+  window.openAttendance = async (classId) => {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await api.attendance.open(classId, today);
+    if (error && !error.includes('already open')) { ui.toast.error(error); return; }
+    const sessionId = data?.id || null;
+    window.location.href = `/pages/attendance.html${sessionId ? '?session=' + sessionId : ''}`;
+  };
+
+  // ── Add class modal ────────────────────────────────────────────────────────
+  document.getElementById('add-class-btn').addEventListener('click', async () => {
+    const [discRes, coachRes] = await Promise.all([api.admin.disciplines(), api.admin.coaches()]);
+    const disciplines = discRes.data?.disciplines || [];
+    const coaches     = coachRes.data?.coaches    || [];
+
+    const { body, close } = ui.modal({ title: 'Add Class', size: 'lg' });
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem">
+        <div class="form-group"><label>Title</label><input class="input" id="c-title" placeholder="Class title"></div>
+        <div class="form-group">
+          <label>Discipline</label>
+          <select class="select" id="c-disc">
+            <option value="">Select discipline</option>
+            ${disciplines.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Coach</label>
+          <select class="select" id="c-coach">
+            <option value="">Select coach</option>
+            ${coaches.map(c => `<option value="${c.id}">${c.first_name} ${c.last_name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Day</label>
+          <select class="select" id="c-day">
+            ${DAYS.map((d,i) => `<option value="${i}">${d}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Start Time</label><input type="time" class="input" id="c-start" value="09:00"></div>
+        <div class="form-group"><label>End Time</label><input type="time" class="input" id="c-end" value="10:00"></div>
+        <div class="form-group" style="grid-column:1/-1"><label>Location</label><input class="input" id="c-loc" placeholder="Room / mat area (optional)"></div>
+      </div>
+      <div class="form-error hidden" id="c-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="c-cancel">Cancel</button>
+        <button class="btn btn-primary" id="c-save">Add Class</button>
+      </div>`;
+
+    document.getElementById('c-cancel').onclick = close;
+    document.getElementById('c-save').onclick = async () => {
+      const saveBtn = document.getElementById('c-save');
+      const errEl   = document.getElementById('c-err');
+      errEl.classList.add('hidden');
+
+      ui.setLoading(saveBtn, true);
+      const { error } = await api.classes.create({
+        title:         document.getElementById('c-title').value,
+        discipline_id: parseInt(document.getElementById('c-disc').value),
+        coach_id:      parseInt(document.getElementById('c-coach').value),
+        day_of_week:   parseInt(document.getElementById('c-day').value),
+        start_time:    document.getElementById('c-start').value,
+        end_time:      document.getElementById('c-end').value,
+        location:      document.getElementById('c-loc').value || null,
+      });
+      ui.setLoading(saveBtn, false, 'Add Class');
+
+      if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+      ui.toast.success('Class added.');
+      close();
+      location.reload();
+    };
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Belt Progress — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+      <div class="page-header">
+        <div class="page-title">Belt Progress</div>
+        <div class="page-subtitle" id="belt-sub">Loading…</div>
+      </div>
+
+      <!-- Eligibility card -->
+      <div id="eligibility-card" class="card mb-6"></div>
+
+      <!-- Skills checklist -->
+      <div id="skills-card" class="card"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api, { store } from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth();
+  await initShell({ title: 'Belt Progress' });
+
+  const urlParams = new URLSearchParams(window.location.search);
+  // coaches/hc can view any student; students only see themselves
+  const studentId = (user.role === 'student')
+    ? user.id
+    : (parseInt(urlParams.get('id')) || user.id);
+
+  const isCoach = ['admin','head_coach','coach'].includes(user.role);
+
+  // Load in parallel
+  const [profRes, eligRes, skillsRes] = await Promise.all([
+    api.students.get(studentId),
+    api.students.eligibility(studentId),
+    api.students.skills(studentId),
+  ]);
+
+  const profile = profRes.data?.student;
+  const elig    = eligRes.data;
+  const skills  = skillsRes.data?.skills || [];
+
+  if (!profile) { document.getElementById('eligibility-card').innerHTML = ui.empty('⚠','Student not found',''); return; }
+
+  // Subtitle
+  document.getElementById('belt-sub').innerHTML = `
+    ${ui.beltDot(profile.belt_color, profile.belt_name)}
+    ${profile.first_name} ${profile.last_name} · Current: <strong>${profile.belt_name || 'No belt'}</strong>
+    · ${profile.discipline_name || ''}
+  `;
+
+  // ── Eligibility card ────────────────────────────────────────────────────────
+  const eligEl = document.getElementById('eligibility-card');
+  if (!elig || !elig.next_belt) {
+    eligEl.innerHTML = `
+      <div class="card-header"><div class="card-title">Belt Status</div></div>
+      <div class="empty-state"><div class="empty-icon">🏆</div><div class="empty-title">Highest belt achieved!</div></div>`;
+  } else {
+    const checks = elig.checks || {};
+    const eligible = elig.eligible;
+    eligEl.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-title">Next Belt: ${elig.next_belt.name}</div>
+          <div class="card-subtitle flex items-center gap-2">
+            ${ui.beltDot(elig.next_belt.color_hex, elig.next_belt.name)} Target belt
+          </div>
+        </div>
+        ${eligible
+          ? `<span class="badge badge-green" style="font-size:var(--text-sm);padding:6px 12px">✓ Eligible for Promotion</span>`
+          : `<span class="badge badge-amber" style="font-size:var(--text-sm);padding:6px 12px">Requirements Pending</span>`}
+      </div>
+      <div class="form-grid form-grid-2" style="gap:1.5rem;margin-top:0.5rem">
+        ${Object.entries(checks).map(([key, c]) => {
+          const label = { attendance:'Attendance %', eval_score:'Avg Eval Score', skills:'Skills Completed', classes:'Classes Attended' }[key] || key;
+          const pct = key === 'skills'
+            ? (c.total > 0 ? c.completed / c.total * 100 : 100)
+            : (c.required > 0 ? c.value / c.required * 100 : 100);
+          const valText = key === 'skills'
+            ? `${c.completed} / ${c.total}`
+            : `${c.value} / ${c.required}`;
+          return `
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">${label}</span>
+                <span class="${c.pass ? 'text-success' : 'text-danger'} text-sm font-bold">${c.pass ? '✓' : '✗'} ${valText}</span>
+              </div>
+              ${ui.progressBar(pct, c.pass ? 'success' : 'danger')}
+            </div>`;
+        }).join('')}
+      </div>
+      ${eligible && isCoach ? `
+        <div class="mt-6">
+          <button class="btn btn-primary" id="promote-btn">Promote to ${elig.next_belt.name}</button>
+        </div>` : ''}`;
+
+    if (eligible && isCoach) {
+      document.getElementById('promote-btn').addEventListener('click', async () => {
+        const ok = await ui.confirm({
+          title: 'Confirm Promotion',
+          message: `Promote ${profile.first_name} to ${elig.next_belt.name}?`,
+          confirmText: 'Promote',
+        });
+        if (!ok) return;
+        const { error } = await api.promotions.create({
+          student_id: studentId,
+          to_belt_id: elig.next_belt.id,
+        });
+        if (error) { ui.toast.error(error); return; }
+        ui.toast.success(`${profile.first_name} promoted to ${elig.next_belt.name}! 🥋`);
+        location.reload();
+      });
+    }
+  }
+
+  // ── Skills checklist ────────────────────────────────────────────────────────
+  const skillsEl = document.getElementById('skills-card');
+
+  if (skills.length === 0) {
+    skillsEl.innerHTML = `
+      <div class="card-header"><div class="card-title">Skills Checklist</div></div>
+      ${ui.empty('📝','No skills defined','Skills are defined in Curriculum settings.')}`;
+  } else {
+    // Group by belt
+    const byBelt = {};
+    skills.forEach(s => {
+      const k = s.belt_id;
+      if (!byBelt[k]) byBelt[k] = { name: s.belt_name, skills: [] };
+      byBelt[k].skills.push(s);
+    });
+
+    const LEVEL_ORDER = ['not_started','developing','competent','advanced'];
+
+    skillsEl.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">Skills Checklist</div>
+        ${isCoach ? `<div class="text-xs text-muted">Click a skill to update level</div>` : ''}
+      </div>
+      ${Object.values(byBelt).map(group => `
+        <div style="margin-bottom:1.5rem">
+          <div class="nav-section-label" style="padding:0;margin-bottom:0.75rem">${group.name}</div>
+          ${group.skills.map(skill => `
+            <div class="flex items-center justify-between" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+              <div class="flex items-center gap-3">
+                <span class="${skill.level === 'not_started' ? 'text-dimmed' : 'text-success'}" style="font-size:1rem">
+                  ${skill.level === 'not_started' ? '○' : skill.level === 'developing' ? '◐' : '●'}
+                </span>
+                <span class="text-sm ${skill.level === 'not_started' ? 'text-muted' : ''}">${skill.name}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                ${ui.skillBadge(skill.level)}
+                ${isCoach ? `
+                  <select class="select" style="width:130px;padding:2px 8px;font-size:var(--text-xs)"
+                    onchange="updateSkill(${skill.id}, this.value)">
+                    ${LEVEL_ORDER.map(l => `<option value="${l}" ${skill.level===l?'selected':''}>${l.replace('_',' ')}</option>`).join('')}
+                  </select>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>`).join('')}`;
+  }
+
+  window.updateSkill = async (skillId, level) => {
+    const { error } = await api.students.updateSkill(studentId, skillId, level);
+    if (error) { ui.toast.error(error); return; }
+    ui.toast.success('Skill updated.');
+  };
+</script>
+</body>
+</html>

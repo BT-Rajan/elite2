@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Promotions — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Promotions</div>
+          <div class="page-subtitle">Belt promotion history and pipeline</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs mb-6" id="tabs">
+        <div class="tab active" data-status="approved" onclick="switchTab(this,'approved')">Approved</div>
+        <div class="tab" data-status="pending"  onclick="switchTab(this,'pending')">Pending</div>
+        <div class="tab" data-status="rejected" onclick="switchTab(this,'rejected')">Rejected</div>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div id="table-wrap">
+          <div style="padding:1.5rem">${Array.from({length:5},()=>`<div class="skeleton skeleton-row" style="margin-bottom:4px"></div>`).join('')}</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth(['admin','head_coach','coach']);
+  await initShell({ title: 'Promotions' });
+
+  let currentStatus = 'approved';
+
+  window.switchTab = (el, status) => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    currentStatus = status;
+    load();
+  };
+
+  async function load() {
+    document.getElementById('table-wrap').innerHTML = `<div style="padding:1.5rem">${Array.from({length:5},()=>`<div class="skeleton skeleton-row" style="margin-bottom:4px"></div>`).join('')}</div>`;
+
+    const { data, error } = await api.promotions.list({ status: currentStatus });
+    const promotions = data?.promotions || [];
+
+    if (error) { document.getElementById('table-wrap').innerHTML = ui.empty('⚠','Failed to load',error); return; }
+
+    if (promotions.length === 0) {
+      document.getElementById('table-wrap').innerHTML = ui.empty('🥋','No promotions','No ' + currentStatus + ' promotions found.');
+      return;
+    }
+
+    const statusBadge = { approved:'badge-green', pending:'badge-amber', rejected:'badge-red' };
+
+    document.getElementById('table-wrap').innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>From Belt</th>
+              <th>To Belt</th>
+              <th>Approved By</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${promotions.map(p => `
+              <tr>
+                <td class="font-medium text-sm">${p.student_name}</td>
+                <td>
+                  <span class="text-sm text-muted">${p.from_belt || 'None'}</span>
+                </td>
+                <td>
+                  <span class="font-medium text-sm text-accent">${p.to_belt}</span>
+                </td>
+                <td class="text-sm text-muted">${p.approved_by_name}</td>
+                <td class="text-sm text-muted">${ui.date(p.promoted_at || p.created_at)}</td>
+                <td>${ui.badge(p.status, statusBadge[p.status] || 'badge-gray')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  load();
+</script>
+</body>
+</html>

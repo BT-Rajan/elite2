@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Notifications</div>
+          <div class="page-subtitle" id="notif-count">Loading…</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary btn-sm" id="mark-all-btn">Mark all read</button>
+          <button class="btn btn-primary hidden" id="broadcast-btn">Broadcast</button>
+        </div>
+      </div>
+
+      <!-- Filter tabs -->
+      <div class="tabs mb-6">
+        <div class="tab active" onclick="setFilter(this, false)">All</div>
+        <div class="tab" onclick="setFilter(this, true)">Unread</div>
+      </div>
+
+      <div id="notif-list" class="card" style="padding:0"></div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth();
+  await initShell({ title: 'Notifications' });
+
+  let unreadOnly = false;
+
+  if (['admin','head_coach'].includes(user.role)) {
+    document.getElementById('broadcast-btn').classList.remove('hidden');
+    document.getElementById('broadcast-btn').addEventListener('click', showBroadcastModal);
+  }
+
+  window.setFilter = (el, unread) => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    unreadOnly = unread;
+    load();
+  };
+
+  document.getElementById('mark-all-btn').addEventListener('click', async () => {
+    await api.notifications.markAllRead();
+    ui.toast.success('All marked as read.');
+    load();
+  });
+
+  async function load() {
+    const listEl = document.getElementById('notif-list');
+    listEl.innerHTML = `<div style="padding:1.5rem">${Array.from({length:5},()=>`<div class="skeleton skeleton-row" style="margin-bottom:8px"></div>`).join('')}</div>`;
+
+    const { data, error } = await api.notifications.list(unreadOnly ? { unread: true } : {});
+    const notifs = data?.notifications || [];
+    const unreadCount = data?.unread_count || 0;
+
+    document.getElementById('notif-count').textContent = `${unreadCount} unread`;
+
+    if (error) { listEl.innerHTML = ui.empty('⚠','Failed to load',error); return; }
+    if (notifs.length === 0) { listEl.innerHTML = ui.empty('🔔','All caught up!','No notifications here.'); return; }
+
+    const ICONS = { promotion:'🥋', evaluation:'📋', attendance:'✓', general:'ℹ', missed_class:'⚠', payment:'💳' };
+
+    listEl.innerHTML = notifs.map(n => `
+      <div class="flex items-start gap-3" style="padding:1rem;border-bottom:1px solid var(--color-border);background:${n.is_read ? 'transparent' : 'var(--color-accent-dim)'}" id="notif-${n.id}">
+        <div style="font-size:1.25rem;flex-shrink:0;margin-top:2px">${ICONS[n.type] || '🔔'}</div>
+        <div class="flex-1">
+          <div class="font-medium text-sm ${n.is_read ? '' : 'text-accent'}">${n.title}</div>
+          <div class="text-sm text-muted" style="margin-top:2px">${n.body}</div>
+          <div class="text-xs text-dimmed" style="margin-top:4px">${ui.relativeTime(n.created_at)}</div>
+        </div>
+        <div class="flex gap-1 flex-shrink-0">
+          ${!n.is_read ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="markRead(${n.id})" title="Mark read">✓</button>` : ''}
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteNotif(${n.id})" title="Delete">✕</button>
+        </div>
+      </div>`).join('');
+  }
+
+  window.markRead = async (id) => {
+    await api.notifications.markRead(id);
+    const el = document.getElementById(`notif-${id}`);
+    if (el) {
+      el.style.background = 'transparent';
+      el.querySelector('.text-accent')?.classList.remove('text-accent');
+      el.querySelector('[onclick*="markRead"]')?.remove();
+    }
+    const cnt = document.getElementById('notif-count');
+    const cur = parseInt(cnt.textContent) || 0;
+    cnt.textContent = `${Math.max(0, cur - 1)} unread`;
+  };
+
+  window.deleteNotif = async (id) => {
+    await api.notifications.delete(id);
+    document.getElementById(`notif-${id}`)?.remove();
+  };
+
+  function showBroadcastModal() {
+    const { body, close } = ui.modal({ title: 'Broadcast Notification' });
+    body.innerHTML = `
+      <div class="form-grid" style="gap:1rem">
+        <div class="form-group">
+          <label>Send to</label>
+          <select class="select" id="bc-role">
+            <option value="">All users</option>
+            <option value="student">All Students</option>
+            <option value="coach">All Coaches</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Title</label>
+          <input class="input" id="bc-title" placeholder="Notification title">
+        </div>
+        <div class="form-group">
+          <label>Message</label>
+          <textarea class="textarea" id="bc-body" placeholder="Message content…" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="form-error hidden" id="bc-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="bc-cancel">Cancel</button>
+        <button class="btn btn-primary" id="bc-send">Send Broadcast</button>
+      </div>`;
+
+    document.getElementById('bc-cancel').onclick = close;
+    document.getElementById('bc-send').onclick = async () => {
+      const saveBtn = document.getElementById('bc-send');
+      const errEl   = document.getElementById('bc-err');
+      errEl.classList.add('hidden');
+      const title = document.getElementById('bc-title').value.trim();
+      const body2 = document.getElementById('bc-body').value.trim();
+      if (!title || !body2) { errEl.textContent = 'Title and message are required.'; errEl.classList.remove('hidden'); return; }
+
+      ui.setLoading(saveBtn, true);
+      const { error } = await api.notifications.broadcast({
+        role:  document.getElementById('bc-role').value || undefined,
+        type:  'general',
+        title, body: body2,
+      });
+      ui.setLoading(saveBtn, false, 'Send Broadcast');
+      if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+      ui.toast.success('Broadcast sent!');
+      close();
+    };
+  }
+
+  load();
+</script>
+</body>
+</html>
