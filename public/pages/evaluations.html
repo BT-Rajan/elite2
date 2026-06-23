@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evaluations — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Evaluations</div>
+          <div class="page-subtitle">Score and track student performance</div>
+        </div>
+        <button class="btn btn-primary" id="new-eval-btn">+ New Evaluation</button>
+      </div>
+
+      <!-- Filters -->
+      <div class="search-bar mb-6">
+        <input type="date" class="input" id="from-date" style="width:160px">
+        <input type="date" class="input" id="to-date" style="width:160px">
+        <button class="btn btn-secondary" id="filter-btn">Apply</button>
+      </div>
+
+      <!-- Table -->
+      <div class="card" style="padding:0">
+        <div id="table-wrap">
+          <div style="padding:1.5rem">${Array.from({length:5},()=>`<div class="skeleton skeleton-row" style="margin-bottom:4px"></div>`).join('')}</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth(['admin','head_coach','coach']);
+  await initShell({ title: 'Evaluations' });
+
+  const FIELDS = ['technique','fitness','discipline','focus','attitude','balance','reflex','speed','flexibility'];
+
+  // Set default date range to current month
+  const now = new Date();
+  const fromEl = document.getElementById('from-date');
+  const toEl   = document.getElementById('to-date');
+  fromEl.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  toEl.value   = now.toISOString().split('T')[0];
+
+  // Pre-fill student from URL param
+  const urlParams = new URLSearchParams(window.location.search);
+  const preStudent = urlParams.get('student');
+
+  document.getElementById('filter-btn').addEventListener('click', load);
+
+  async function load() {
+    document.getElementById('table-wrap').innerHTML = `<div style="padding:1.5rem">${Array.from({length:5},()=>`<div class="skeleton skeleton-row" style="margin-bottom:4px"></div>`).join('')}</div>`;
+
+    const params = { from: fromEl.value, to: toEl.value };
+    if (preStudent) params.student_id = preStudent;
+
+    const { data, error } = await api.evaluations.list(params);
+    const evals = data?.evaluations || [];
+
+    if (error) { document.getElementById('table-wrap').innerHTML = ui.empty('⚠','Failed to load',error); return; }
+
+    if (evals.length === 0) {
+      document.getElementById('table-wrap').innerHTML = ui.empty('📋','No evaluations','No evaluations found for this period.');
+      return;
+    }
+
+    document.getElementById('table-wrap').innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Coach</th>
+              <th>Date</th>
+              <th>Overall</th>
+              <th>Breakdown</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${evals.map(e => {
+              const score = parseFloat(e.overall);
+              const variant = score >= 8 ? 'success' : score >= 6 ? '' : 'danger';
+              return `
+              <tr>
+                <td>
+                  <div class="flex items-center gap-2">
+                    ${ui.avatar({ name: e.student_name, avatar: e.student_avatar, size: 'sm' })}
+                    <span class="font-medium text-sm">${e.student_name}</span>
+                  </div>
+                </td>
+                <td class="text-sm text-muted">${e.coach_name}</td>
+                <td class="text-sm text-muted">${ui.date(e.eval_date)}</td>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-bold text-${variant === 'success' ? 'success' : variant === 'danger' ? 'danger' : 'text'}">${score.toFixed(1)}</span>
+                    <span class="text-dimmed text-xs">/10</span>
+                  </div>
+                  ${ui.progressBar(score * 10, variant)}
+                </td>
+                <td>
+                  <div class="flex gap-1 flex-wrap">
+                    ${FIELDS.slice(0,4).map(f => `<span class="badge badge-gray" title="${f}">${f.slice(0,3).toUpperCase()} ${e[f]}</span>`).join('')}
+                  </div>
+                </td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" onclick="viewEval(${e.id})">View</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── View evaluation detail ─────────────────────────────────────────────────
+  window.viewEval = async (id) => {
+    const { data } = await api.evaluations.get(id);
+    const e = data?.evaluation;
+    if (!e) { ui.toast.error('Could not load evaluation.'); return; }
+
+    ui.modal({
+      title: `Evaluation — ${e.student_name}`,
+      size: 'lg',
+      content: `
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <div class="text-sm text-muted">Coach: ${e.coach_name}</div>
+            <div class="text-sm text-muted">Date: ${ui.date(e.eval_date)}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-3xl font-bold font-mono text-accent">${parseFloat(e.overall).toFixed(1)}</div>
+            <div class="text-xs text-dimmed">Overall /10</div>
+          </div>
+        </div>
+        <div class="form-grid form-grid-3" style="gap:1rem 1.5rem">
+          ${FIELDS.map(f => `
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-xs text-muted" style="text-transform:capitalize">${f}</span>
+                <span class="font-mono text-sm">${e[f]}/10</span>
+              </div>
+              ${ui.progressBar(parseInt(e[f]) * 10)}
+            </div>`).join('')}
+        </div>
+        ${e.notes ? `<div class="form-group mt-5"><label>Coach notes</label><div class="text-sm text-muted" style="margin-top:4px">${e.notes}</div></div>` : ''}`,
+    });
+  };
+
+  // ── New evaluation modal ───────────────────────────────────────────────────
+  document.getElementById('new-eval-btn').addEventListener('click', async () => {
+    const { data: studData } = await api.students.list({});
+    const students = studData?.students || [];
+
+    const { body, close } = ui.modal({ title: 'New Evaluation', size: 'lg' });
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem;margin-bottom:1.5rem">
+        <div class="form-group">
+          <label>Student</label>
+          <select class="select" id="eval-student">
+            <option value="">Select student</option>
+            ${students.map(s => `<option value="${s.id}" ${preStudent == s.id ? 'selected' : ''}>${s.first_name} ${s.last_name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" class="input" id="eval-date" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+      </div>
+      <div class="form-grid form-grid-3" style="gap:1rem 1.5rem;margin-bottom:1.5rem" id="score-fields">
+        ${FIELDS.map(f => `
+          <div class="form-group">
+            <label style="display:flex;justify-content:space-between">
+              <span style="text-transform:capitalize">${f}</span>
+              <span class="font-mono text-accent" id="lbl-${f}">5</span>
+            </label>
+            <input type="range" class="score-slider" id="sl-${f}" min="1" max="10" value="5"
+              oninput="document.getElementById('lbl-${f}').textContent=this.value">
+          </div>`).join('')}
+      </div>
+      <div class="form-group" style="margin-bottom:1rem">
+        <label>Coach Notes</label>
+        <textarea class="textarea" id="eval-notes" placeholder="Optional notes about this evaluation…" rows="3"></textarea>
+      </div>
+      <div class="form-error hidden" id="eval-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="eval-cancel">Cancel</button>
+        <button class="btn btn-primary" id="eval-save">Submit Evaluation</button>
+      </div>`;
+
+    document.getElementById('eval-cancel').onclick = close;
+    document.getElementById('eval-save').onclick = async () => {
+      const saveBtn = document.getElementById('eval-save');
+      const errEl   = document.getElementById('eval-err');
+      errEl.classList.add('hidden');
+
+      const studentId = document.getElementById('eval-student').value;
+      const date      = document.getElementById('eval-date').value;
+      if (!studentId) { errEl.textContent = 'Please select a student.'; errEl.classList.remove('hidden'); return; }
+
+      const payload = { student_id: parseInt(studentId), eval_date: date, notes: document.getElementById('eval-notes').value };
+      FIELDS.forEach(f => { payload[f] = parseInt(document.getElementById(`sl-${f}`).value); });
+
+      ui.setLoading(saveBtn, true);
+      const { data, error } = await api.evaluations.create(payload);
+      ui.setLoading(saveBtn, false, 'Submit Evaluation');
+
+      if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
+      ui.toast.success(`Evaluation submitted. Overall: ${data.overall}/10`);
+      close();
+      load();
+    };
+  });
+
+  load();
+</script>
+</body>
+</html>

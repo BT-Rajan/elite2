@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance — Elite 2.0</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header flex items-center justify-between">
+        <div>
+          <div class="page-title">Attendance</div>
+          <div class="page-subtitle" id="session-label">Select a session or start a new one</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary" id="open-session-btn">+ Open Session</button>
+          <button class="btn btn-danger btn-sm hidden" id="close-session-btn">Close Session</button>
+        </div>
+      </div>
+
+      <!-- Sessions list -->
+      <div id="sessions-area">
+        <div class="card mb-4">
+          <div class="card-header">
+            <div class="card-title">Today's Sessions</div>
+          </div>
+          <div id="sessions-list"></div>
+        </div>
+      </div>
+
+      <!-- Active session attendance -->
+      <div id="attendance-area" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title" id="att-session-title">Mark Attendance</div>
+            <div class="flex gap-2">
+              <button class="btn btn-primary btn-sm" id="mark-all-present">All Present</button>
+              <button class="btn btn-secondary btn-sm" id="save-btn">Save All</button>
+            </div>
+          </div>
+          <div id="att-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '/js/auth-guard.js';
+  import { initShell } from '/js/shell.js';
+  import api from '/js/api.js';
+  import ui from '/js/ui.js';
+
+  const user = guardAuth(['admin','head_coach','coach']);
+  await initShell({ title: 'Attendance' });
+
+  const params = new URLSearchParams(window.location.search);
+  let activeSessionId = params.get('session') ? parseInt(params.get('session')) : null;
+
+  // State for attendance marks
+  const marks = {};  // studentId → status
+
+  // ── Load sessions ──────────────────────────────────────────────────────────
+  async function loadSessions() {
+    const today = new Date().toISOString().split('T')[0];
+    const { data } = await api.attendance.sessions({ date: today });
+    const sessions = data?.sessions || [];
+
+    const list = document.getElementById('sessions-list');
+    if (sessions.length === 0) {
+      list.innerHTML = ui.empty('📋', 'No sessions today', 'Open a session to take attendance.');
+    } else {
+      list.innerHTML = sessions.map(s => `
+        <div class="flex items-center gap-3" style="padding:0.75rem 0;border-bottom:1px solid var(--color-border)">
+          <div class="flex-1">
+            <div class="font-medium text-sm">${s.class_title}</div>
+            <div class="text-xs text-dimmed">${s.discipline_name} · ${s.records_count} records ${s.closed_at ? '· Closed' : '· Open'}</div>
+          </div>
+          ${!s.closed_at ? `<button class="btn btn-primary btn-sm" onclick="loadSessionMarking(${s.id})">Take Attendance</button>` : `<span class="badge badge-gray">Done</span>`}
+        </div>`).join('');
+    }
+
+    // Auto-open if session param was passed
+    if (activeSessionId) loadSessionMarking(activeSessionId);
+  }
+
+  // ── Mark attendance for a session ──────────────────────────────────────────
+  window.loadSessionMarking = async (sessionId) => {
+    activeSessionId = sessionId;
+    document.getElementById('sessions-area').classList.add('hidden');
+    document.getElementById('attendance-area').classList.remove('hidden');
+    document.getElementById('close-session-btn').classList.remove('hidden');
+
+    // Load enrolled students via coach's student list
+    const { data: studData } = await api.students.list({});
+    const students = studData?.students || [];
+
+    // Load existing records
+    const { data: recData } = await api.attendance.records(sessionId);
+    const existing = {};
+    (recData?.records || []).forEach(r => { existing[r.student_id] = r.status; });
+
+    students.forEach(s => { marks[s.id] = existing[s.id] || 'absent'; });
+
+    renderAttList(students);
+
+    document.getElementById('mark-all-present').onclick = () => {
+      students.forEach(s => { marks[s.id] = 'present'; });
+      renderAttList(students);
+    };
+
+    document.getElementById('save-btn').onclick = async () => {
+      const records = Object.entries(marks).map(([id, status]) => ({ student_id: parseInt(id), status }));
+      const { error } = await api.attendance.bulkMark(sessionId, records);
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Attendance saved!');
+    };
+
+    document.getElementById('close-session-btn').onclick = async () => {
+      const ok = await ui.confirm({ title: 'Close Session', message: 'This will finalise attendance for the session.', confirmText: 'Close Session' });
+      if (!ok) return;
+      await api.attendance.close(sessionId);
+      ui.toast.success('Session closed.');
+      window.location.href = '/pages/attendance.html';
+    };
+  };
+
+  function renderAttList(students) {
+    const list = document.getElementById('att-list');
+    if (students.length === 0) {
+      list.innerHTML = ui.empty('👤', 'No students assigned', 'Assign students to this coach to take attendance.');
+      return;
+    }
+
+    list.innerHTML = `<div style="padding:0.5rem 0">` + students.map(s => `
+      <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)" id="row-${s.id}">
+        ${ui.avatar({ name: s.first_name + ' ' + s.last_name, avatar: s.avatar, size: 'sm' })}
+        <div class="flex-1 font-medium text-sm">${s.first_name} ${s.last_name}</div>
+        <div class="flex gap-2">
+          ${['present','late','absent'].map(status => `
+            <button class="btn btn-sm ${marks[s.id] === status ? (status === 'present' ? 'btn-success' : status === 'late' ? 'btn-warning' : 'btn-danger') : 'btn-secondary'}"
+              onclick="setMark(${s.id}, '${status}', this.closest('[id]').parentElement)"
+              data-student="${s.id}" data-status="${status}">
+              ${status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>`).join('')}
+        </div>
+      </div>`).join('') + `</div>`;
+  }
+
+  window.setMark = (studentId, status, row) => {
+    marks[studentId] = status;
+    // Re-render just the buttons
+    row.querySelectorAll('button[data-student]').forEach(btn => {
+      const s = btn.dataset.status;
+      btn.className = `btn btn-sm ${status === s ? (s === 'present' ? 'btn-success' : s === 'late' ? 'btn-warning' : 'btn-danger') : 'btn-secondary'}`;
+    });
+  };
+
+  // ── Open new session ───────────────────────────────────────────────────────
+  document.getElementById('open-session-btn').addEventListener('click', async () => {
+    const { data: classData } = await api.classes.list();
+    const classes = classData?.classes || [];
+
+    if (classes.length === 0) { ui.toast.warning('No classes available. Create a class first.'); return; }
+
+    const { body, close } = ui.modal({ title: 'Open Session' });
+    body.innerHTML = `
+      <div class="form-group">
+        <label>Class</label>
+        <select class="select" id="class-select">
+          <option value="">Select class</option>
+          ${classes.map(c => `<option value="${c.id}">${c.title} (${c.discipline_name})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group mt-4">
+        <label>Date</label>
+        <input type="date" class="input" id="session-date" value="${new Date().toISOString().split('T')[0]}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="btn btn-primary" id="open-btn">Open Session</button>
+      </div>`;
+
+    document.getElementById('open-btn').onclick = async () => {
+      const classId = document.getElementById('class-select').value;
+      const date    = document.getElementById('session-date').value;
+      if (!classId) { ui.toast.warning('Select a class.'); return; }
+      const { data, error } = await api.attendance.open(parseInt(classId), date);
+      if (error) { ui.toast.error(error); return; }
+      close();
+      loadSessionMarking(data.id);
+    };
+  });
+
+  loadSessions();
+</script>
+</body>
+</html>
