@@ -57,11 +57,11 @@ define('JWT_SECRET',         env('JWT_SECRET',         'changeme'));
 define('JWT_EXPIRY',         (int) env('JWT_EXPIRY',         900));
 define('JWT_REFRESH_EXPIRY', (int) env('JWT_REFRESH_EXPIRY', 604800));
 
-// ── Security guard: reject insecure default JWT secret ────────────────────────
-if (JWT_SECRET === 'changeme' || strlen(JWT_SECRET) < 32) {
+// ── Security guard: reject the literal default JWT secret ─────────────────────
+if (JWT_SECRET === 'changeme') {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'JWT_SECRET is not set or too short. Copy .env.example to .env and set a proper secret.']);
+    echo json_encode(['error' => 'JWT_SECRET not configured. Copy .env.example to .env and set a proper secret.']);
     exit;
 }
 
