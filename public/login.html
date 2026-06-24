@@ -45,7 +45,7 @@
 </div>
 
 <script type="module">
-  import api, { store } from './js/api.js';
+  import api, { store, APP_ROOT } from './js/api.js';
 
   // Already logged in → redirect
   if (store.accessToken && store.user) {
@@ -53,14 +53,13 @@
   }
 
   function redirect(role) {
-    const root = new URL('./js/api.js', document.baseURI).pathname.replace(/\/js\/api\.js$/, '');
     const map = {
-      admin:      root + '/pages/admin-dashboard.html',
-      head_coach: root + '/pages/hc-dashboard.html',
-      coach:      root + '/pages/coach-dashboard.html',
-      student:    root + '/pages/student-dashboard.html',
+      admin:      APP_ROOT + '/pages/admin-dashboard.html',
+      head_coach: APP_ROOT + '/pages/hc-dashboard.html',
+      coach:      APP_ROOT + '/pages/coach-dashboard.html',
+      student:    APP_ROOT + '/pages/student-dashboard.html',
     };
-    window.location.href = map[role] || root + '/pages/student-dashboard.html';
+    window.location.href = map[role] || APP_ROOT + '/pages/student-dashboard.html';
   }
 
   const btn   = document.getElementById('login-btn');

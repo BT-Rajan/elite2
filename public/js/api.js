@@ -4,15 +4,11 @@
  * Handles auth headers, token refresh, and error normalisation.
  */
 
-// Derive base paths from this script's URL so the app works at any sub-path
-// (e.g. http://localhost/elite2/ or http://localhost/)
-const _publicRoot = (() => {
-  try {
-    return new URL(import.meta.url).pathname.replace(/\/js\/api\.js$/, '');
-  } catch { return ''; }
-})();
-const API_BASE   = _publicRoot + '/api';
-const LOGIN_PAGE = _publicRoot + '/login.html';
+// Derive base paths from this script's URL — works at any sub-path
+// e.g. http://localhost/elite2/js/api.js → APP_ROOT = /elite2
+const APP_ROOT   = new URL(import.meta.url).pathname.replace(/\/js\/api\.js$/, '');
+const API_BASE   = APP_ROOT + '/api';
+const LOGIN_PAGE = APP_ROOT + '/login.html';
 
 const store = {
   get accessToken()  { return localStorage.getItem('e2_access'); },
@@ -216,4 +212,4 @@ const api = {
 };
 
 export default api;
-export { store };
+export { store, APP_ROOT };

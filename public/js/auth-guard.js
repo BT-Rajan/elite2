@@ -1,23 +1,4 @@
-/**
- * Elite 2.0 — Auth Guard
- * Include as the first module script on every authenticated page.
- *
- * Usage:
- *   import { guardAuth } from '/js/auth-guard.js';
- *   guardAuth(['admin', 'head_coach']);   // allowed roles
- *
- * If no roles passed, any authenticated user is allowed.
- */
-
-import { store } from './api.js';
-
-// Derive public root so redirects work at any sub-path
-const _root = (() => {
-  try {
-    return new URL(import.meta.url).pathname.replace(/\/js\/[^/]+$/, '');
-  } catch { return ''; }
-})();
-
+import { store, APP_ROOT } from './api.js';
 
 /**
  * Redirect to login if not authenticated, or to 403 if wrong role.
@@ -28,12 +9,12 @@ function guardAuth(roles = []) {
   const token = store.accessToken;
 
   if (!token || !user) {
-    window.location.replace(_root + '/login.html');
+    window.location.replace(APP_ROOT + '/login.html');
     throw new Error('unauthenticated');
   }
 
   if (roles.length > 0 && !roles.includes(user.role)) {
-    window.location.replace(_root + '/pages/403.html');
+    window.location.replace(APP_ROOT + '/pages/403.html');
     throw new Error('forbidden');
   }
 

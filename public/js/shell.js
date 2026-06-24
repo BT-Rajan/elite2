@@ -4,8 +4,11 @@
  * Import on every authenticated page.
  */
 
-import api, { store } from './api.js';
+import api, { store, APP_ROOT } from './api.js';
 import ui from './ui.js';
+
+// Alias for convenience
+const _root = APP_ROOT;
 
 const NAV = {
   admin: [
@@ -97,8 +100,7 @@ function _renderSidebar(user) {
           <div class="sidebar-user-role">${user.role.replace('_', ' ')}</div>
         </div>
       </div>
-      <button id="logout-btn" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:var(--space-2) var(--space-2);border-radius:var(--radius-md);background:none;border:none;cursor:pointer;color:var(--color-text-2);font-size:var(--text-sm);margin-top:var(--space-1);transition:background var(--transition-fast);"
-        onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='none'">
+      <button id="logout-btn" class="sidebar-logout">
         <span>🚪</span><span>Sign out</span>
       </button>
     </div>

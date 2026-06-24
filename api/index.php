@@ -42,6 +42,7 @@ $r = new Router();
 
 // ── Health ─────────────────────────────────────────────────────────────────────
 $r->get('/health', fn() => Response::ok(['status' => 'ok', 'time' => date('c')]));
+$r->get('/config', fn() => Response::ok(['app_url' => APP_URL]));
 
 // ── Auth (public) ──────────────────────────────────────────────────────────────
 $r->post('/auth/login',           [AuthController::class, 'login']);
