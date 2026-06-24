@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Elite 2.0</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="page">
+
+      <div class="page-header">
+        <div class="page-title" id="greeting">Dashboard</div>
+        <div class="page-subtitle" id="subtitle"></div>
+      </div>
+
+      <!-- stat cards — all roles show some form of stats -->
+      <div class="stat-grid" id="stats">
+        <div class="stat-card"><div class="skeleton skeleton-text" style="width:60%"></div><div class="skeleton skeleton-title" style="margin-top:8px;width:40%"></div></div>
+        <div class="stat-card"><div class="skeleton skeleton-text" style="width:60%"></div><div class="skeleton skeleton-title" style="margin-top:8px;width:40%"></div></div>
+        <div class="stat-card"><div class="skeleton skeleton-text" style="width:60%"></div><div class="skeleton skeleton-title" style="margin-top:8px;width:40%"></div></div>
+        <div class="stat-card"><div class="skeleton skeleton-text" style="width:60%"></div><div class="skeleton skeleton-title" style="margin-top:8px;width:40%"></div></div>
+      </div>
+
+      <!-- main content panels — role-specific -->
+      <div id="panels">
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem">
+          <div class="card"><div class="skeleton skeleton-card"></div></div>
+          <div class="card"><div class="skeleton skeleton-card"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardAuth } from '../js/auth-guard.js';
+  import { initShell } from '../js/shell.js';
+  import api from '../js/api.js';
+  import ui from '../js/ui.js';
+
+  // Any authenticated role can access this page
+  const user = guardAuth([]);
+  await initShell({ title: 'Dashboard' });
+
+  const role = user.role;
+
+  // ─── Route to the right renderer ────────────────────────────────────────────
+  if      (role === 'admin')      await renderAdmin(user);
+  else if (role === 'head_coach') await renderHeadCoach(user);
+  else if (role === 'coach')      await renderCoach(user);
+  else                            await renderStudent(user);
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ADMIN
+  // ════════════════════════════════════════════════════════════════════════════
+  async function renderAdmin(user) {
+    document.getElementById('greeting').textContent   = `Welcome, ${user.first_name}`;
+    document.getElementById('subtitle').textContent   = 'System overview and quick actions';
+
+    const [dashRes, settingsRes] = await Promise.all([
+      api.analytics.dashboard(),
+      api.admin.settings(),
+    ]);
+
+    const d        = dashRes.data;
+    const settings = settingsRes.data?.settings || {};
+
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card fade-up">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value text-accent">${d?.totals?.students ?? '—'}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Active Coaches</div>
+        <div class="stat-value">${d?.totals?.coaches ?? '—'}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Avg Attendance</div>
+        <div class="stat-value">${d?.avg_attendance_30d ?? '—'}%</div>
+        <div class="stat-change">30-day average</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Pending Promotions</div>
+        <div class="stat-value ${d?.totals?.pending_promotions > 0 ? 'text-warning' : ''}">${d?.totals?.pending_promotions ?? '—'}</div>
+      </div>
+    `;
+
+    document.getElementById('panels').innerHTML = `
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem">
+        <div class="card fade-up">
+          <div class="card-header"><div class="card-title">Quick Actions</div></div>
+          <div class="flex flex-col gap-3">
+            <a href="users.html"       class="btn btn-secondary w-full" style="justify-content:flex-start">👥 Manage Users</a>
+            <a href="disciplines.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🥋 Curriculum Settings</a>
+            <a href="coaches.html"     class="btn btn-secondary w-full" style="justify-content:flex-start">🏅 Coach Assignments</a>
+            <a href="settings.html"    class="btn btn-secondary w-full" style="justify-content:flex-start">⚙ System Settings</a>
+            <a href="seminars.html"    class="btn btn-secondary w-full" style="justify-content:flex-start">🎓 Seminars</a>
+          </div>
+        </div>
+        <div class="card fade-up">
+          <div class="card-header"><div class="card-title">System</div></div>
+          <div style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)" class="flex justify-between text-sm">
+            <span class="text-muted">Academy Name</span>
+            <span class="font-medium">${settings.academy_name || 'Elite 2.0'}</span>
+          </div>
+          <div style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)" class="flex justify-between text-sm">
+            <span class="text-muted">Points per class</span>
+            <span class="font-mono">${settings.points_attendance || 10}</span>
+          </div>
+          <div style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)" class="flex justify-between text-sm">
+            <span class="text-muted">Points per promotion</span>
+            <span class="font-mono">${settings.points_promotion || 200}</span>
+          </div>
+          <div style="padding:0.5rem 0" class="flex justify-between text-sm">
+            <span class="text-muted">Late attendance credit</span>
+            <span class="font-mono">${settings.attendance_late_credit || 0.5}×</span>
+          </div>
+          <div class="mt-4">
+            <a href="settings.html" class="btn btn-secondary w-full">Edit Settings</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // HEAD COACH
+  // ════════════════════════════════════════════════════════════════════════════
+  async function renderHeadCoach(user) {
+    document.getElementById('greeting').textContent = `Good to see you, ${user.first_name}`;
+    document.getElementById('subtitle').textContent = "Here's what's happening at your academy today.";
+
+    const { data, error } = await api.analytics.dashboard();
+
+    if (error || !data) {
+      document.getElementById('stats').innerHTML  = ui.empty('⚠', 'Could not load dashboard', error || 'API error');
+      document.getElementById('panels').innerHTML = '';
+      return;
+    }
+
+    const t = data.totals;
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card fade-up">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value text-accent">${t.students ?? '—'}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Active Coaches</div>
+        <div class="stat-value">${t.coaches ?? '—'}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Avg Attendance</div>
+        <div class="stat-value ${data.avg_attendance_30d >= 80 ? 'text-success' : 'text-warning'}">${data.avg_attendance_30d ?? '—'}%</div>
+        <div class="stat-change">Last 30 days</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Pending Promotions</div>
+        <div class="stat-value ${t.pending_promotions > 0 ? 'text-warning' : ''}">${t.pending_promotions ?? '—'}</div>
+      </div>
+    `;
+
+    document.getElementById('panels').innerHTML = `
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem">
+        <div class="card fade-up">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Promotion Pipeline</div>
+              <div class="card-subtitle">Students approaching belt eligibility</div>
+            </div>
+            <a href="promotions.html" class="btn btn-secondary btn-sm">View all</a>
+          </div>
+          ${data.promotion_pipeline.length === 0
+            ? ui.empty('🥋', 'No students yet', '')
+            : data.promotion_pipeline.map(s => `
+                <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+                  ${ui.avatar({ name: s.name })}
+                  <div class="flex-1 truncate">
+                    <div class="font-medium text-sm truncate">${s.name}</div>
+                    <div class="text-xs text-dimmed flex items-center gap-2">
+                      ${ui.beltDot(s.color_hex, s.current_belt)} ${s.current_belt || 'No belt'}
+                    </div>
+                  </div>
+                  <a href="students.html?id=${s.id}" class="btn btn-ghost btn-sm">View</a>
+                </div>`).join('')}
+        </div>
+        <div class="card fade-up">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Low Attendance</div>
+              <div class="card-subtitle">Students below 70% in last 30 days</div>
+            </div>
+          </div>
+          ${data.low_attendance.length === 0
+            ? ui.empty('✓', 'Great attendance!', 'No students below 70%.')
+            : data.low_attendance.map(s => `
+                <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+                  ${ui.avatar({ name: s.name })}
+                  <div class="flex-1 truncate">
+                    <div class="font-medium text-sm truncate">${s.name}</div>
+                    ${ui.progressBar(s.pct)}
+                  </div>
+                  <span class="font-mono text-sm text-danger">${s.pct}%</span>
+                </div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // COACH
+  // ════════════════════════════════════════════════════════════════════════════
+  async function renderCoach(user) {
+    const today = new Date();
+    document.getElementById('greeting').textContent = `Good to see you, ${user.first_name}`;
+    document.getElementById('subtitle').textContent = today.toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+    // Remove default 4-skeleton stat grid — coach shows 2 stats + today's classes card
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card"><div class="skeleton skeleton-text" style="width:60%"></div><div class="skeleton skeleton-title" style="margin-top:8px;width:40%"></div></div>
+      <div class="stat-card"><div class="skeleton skeleton-text" style="width:60%"></div><div class="skeleton skeleton-title" style="margin-top:8px;width:40%"></div></div>
+    `;
+
+    document.getElementById('panels').innerHTML = `
+      <div class="card mb-6">
+        <div class="card-header">
+          <div class="card-title">Today's Classes</div>
+          <a href="schedule.html" class="btn btn-ghost btn-sm">Full schedule</a>
+        </div>
+        <div id="today-classes">
+          <div class="skeleton skeleton-row"></div>
+          <div class="skeleton skeleton-row mt-2"></div>
+        </div>
+      </div>
+    `;
+
+    const [classRes, reportRes] = await Promise.all([
+      api.classes.list(),
+      api.analytics.coachReport(),
+    ]);
+
+    const todayDow    = today.getDay();
+    const todayClasses = (classRes.data?.classes || []).filter(c => parseInt(c.day_of_week) === todayDow);
+    const report      = reportRes.data;
+
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card fade-up">
+        <div class="stat-label">Sessions This Month</div>
+        <div class="stat-value text-accent">${report?.sessions ?? '—'}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Evaluations This Month</div>
+        <div class="stat-value">${report?.evaluations ?? '—'}</div>
+      </div>
+    `;
+
+    const classesEl = document.getElementById('today-classes');
+    if (todayClasses.length === 0) {
+      classesEl.innerHTML = ui.empty('📅', 'No classes today', 'Enjoy your rest day!');
+    } else {
+      classesEl.innerHTML = todayClasses.map(c => `
+        <div class="flex items-center gap-3" style="padding:0.75rem 0;border-bottom:1px solid var(--color-border)">
+          <div style="width:60px;text-align:center">
+            <div class="font-mono text-sm text-accent">${c.start_time.slice(0,5)}</div>
+            <div class="text-xs text-dimmed">${c.end_time.slice(0,5)}</div>
+          </div>
+          <div class="flex-1">
+            <div class="font-medium text-sm">${c.title}</div>
+            <div class="text-xs text-dimmed">${c.discipline_name}${c.location ? ' · ' + c.location : ''}</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAttendance(${c.id})">Take Attendance</button>
+        </div>
+      `).join('');
+    }
+
+    window.openAttendance = async (classId) => {
+      const dateStr = today.toISOString().split('T')[0];
+      const { data, error } = await api.attendance.open(classId, dateStr);
+      if (error) { ui.toast.error(error); return; }
+      window.location.href = `attendance.html?session=${data.id}`;
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // STUDENT
+  // ════════════════════════════════════════════════════════════════════════════
+  async function renderStudent(user) {
+    document.getElementById('greeting').textContent = `Welcome back, ${user.first_name}! 👊`;
+
+    const [profileRes, attRes, pointsRes, eligRes, notifRes] = await Promise.all([
+      api.students.get(user.id),
+      api.students.attendance(user.id),
+      api.students.points(user.id),
+      api.students.eligibility(user.id),
+      api.notifications.list({ unread: true }),
+    ]);
+
+    const profile = profileRes.data?.student;
+    const attSum  = attRes.data?.summary || {};
+    const points  = pointsRes.data?.total || 0;
+    const elig    = eligRes.data;
+
+    // Belt subtitle
+    if (profile?.belt_name) {
+      document.getElementById('subtitle').innerHTML =
+        `${ui.beltDot(profile.belt_color, profile.belt_name)} Current belt: <strong>${profile.belt_name}</strong>`;
+    } else {
+      document.getElementById('subtitle').textContent = 'No belt assigned yet.';
+    }
+
+    // Stats
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card fade-up">
+        <div class="stat-label">Attendance</div>
+        <div class="stat-value ${attSum.percentage >= 80 ? 'text-success' : 'text-warning'}">${attSum.percentage ?? 0}%</div>
+        <div class="stat-change">${attSum.present ?? 0} of ${attSum.total ?? 0} classes</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Points</div>
+        <div class="stat-value text-accent">${points}</div>
+        <div class="stat-change">Total earned</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Discipline</div>
+        <div class="stat-value">${profile?.discipline_name || '—'}</div>
+      </div>
+      <div class="stat-card fade-up">
+        <div class="stat-label">Belt Ready</div>
+        <div class="stat-value ${elig?.eligible ? 'text-success' : ''}">${elig?.eligible ? '✓ Yes' : 'Not yet'}</div>
+      </div>
+    `;
+
+    // Belt progress panel
+    const nextBelt  = elig?.next_belt;
+    const beltPanel = nextBelt ? `
+      <div class="card-header">
+        <div>
+          <div class="card-title">Next Belt: ${nextBelt.name}</div>
+          <div class="card-subtitle" style="display:flex;align-items:center;gap:6px">
+            ${ui.beltDot(nextBelt.color_hex, nextBelt.name)} Target
+          </div>
+        </div>
+        ${elig.eligible ? `<span class="badge badge-green">Eligible!</span>` : ''}
+      </div>
+      ${Object.entries(elig.checks || {}).map(([key, c]) => `
+        <div style="margin-bottom:0.75rem">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-sm">${key.replace('_', ' ')}</span>
+            <span class="${c.pass ? 'text-success' : 'text-danger'} text-xs">${c.pass ? '✓' : '✗'}</span>
+          </div>
+          ${key !== 'skills'
+            ? ui.progressBar(c.value / c.required * 100)
+            : ui.progressBar(c.total > 0 ? c.completed / c.total * 100 : 100)}
+          <div class="text-xs text-dimmed mt-1">
+            ${key === 'skills' ? `${c.completed}/${c.total} skills` : `${c.value} / ${c.required}`}
+          </div>
+        </div>`).join('')}
+      <a href="belt-progress.html" class="btn btn-secondary w-full mt-2">View full checklist</a>
+    ` : `<div class="empty-state"><div class="empty-icon">🥋</div><div class="empty-title">At highest belt</div></div>`;
+
+    // Achievements panel
+    const achPanel = `
+      <div class="card-header">
+        <div class="card-title">Achievements</div>
+        <a href="achievements.html" class="btn btn-ghost btn-sm">All</a>
+      </div>
+      ${(profile?.achievements || []).length === 0
+        ? ui.empty('🏅', 'No achievements yet', 'Keep training to earn badges!')
+        : profile.achievements.slice(0, 4).map(a => `
+            <div class="flex items-center gap-3" style="padding:0.5rem 0;border-bottom:1px solid var(--color-border)">
+              <span style="font-size:1.5rem">${a.icon}</span>
+              <div>
+                <div class="font-medium text-sm">${a.label}</div>
+                <div class="text-xs text-dimmed">${ui.date(a.earned_at)}</div>
+              </div>
+            </div>`).join('')}
+    `;
+
+    // Notifications list
+    const notifs    = notifRes.data?.notifications || [];
+    const notifHTML = notifs.length === 0
+      ? ui.empty('🔔', 'All caught up!', 'No unread notifications.')
+      : notifs.slice(0, 5).map(n => `
+          <div class="flex items-center gap-3" style="padding:0.75rem 0;border-bottom:1px solid var(--color-border)">
+            <div class="flex-1">
+              <div class="font-medium text-sm">${n.title}</div>
+              <div class="text-xs text-dimmed">${n.body}</div>
+            </div>
+            <div class="text-xs text-dimmed">${ui.relativeTime(n.created_at)}</div>
+          </div>`).join('');
+
+    document.getElementById('panels').innerHTML = `
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1.5rem">
+        <div class="card fade-up">${beltPanel}</div>
+        <div class="card fade-up">${achPanel}</div>
+      </div>
+      <div class="card mt-6 fade-up">
+        <div class="card-header">
+          <div class="card-title">Recent Notifications</div>
+          <a href="notifications.html" class="btn btn-ghost btn-sm">All</a>
+        </div>
+        ${notifHTML}
+      </div>
+    `;
+  }
+</script>
+</body>
+</html>

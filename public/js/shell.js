@@ -12,7 +12,7 @@ const _root = APP_ROOT;
 
 const NAV = {
   admin: [
-    { href: _root + '/pages/admin-dashboard.html', icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/dashboard.html', icon: '⊞', label: 'Dashboard' },
     { href: _root + '/pages/users.html',            icon: '👥', label: 'Users' },
     { href: _root + '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
     { href: _root + '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
@@ -20,7 +20,7 @@ const NAV = {
     { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
   head_coach: [
-    { href: _root + '/pages/hc-dashboard.html',     icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/dashboard.html',        icon: '⊞', label: 'Dashboard' },
     { href: _root + '/pages/students.html',         icon: '👤', label: 'Students' },
     { href: _root + '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
     { href: _root + '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
@@ -32,7 +32,7 @@ const NAV = {
     { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
   coach: [
-    { href: _root + '/pages/coach-dashboard.html',  icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/dashboard.html',        icon: '⊞', label: 'Dashboard' },
     { href: _root + '/pages/schedule.html',         icon: '📅', label: 'My Classes' },
     { href: _root + '/pages/attendance.html',       icon: '✓',  label: 'Attendance' },
     { href: _root + '/pages/students.html',         icon: '👤', label: 'Students' },
@@ -40,7 +40,7 @@ const NAV = {
     { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
   student: [
-    { href: _root + '/pages/student-dashboard.html',icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/dashboard.html',        icon: '⊞', label: 'Dashboard' },
     { href: _root + '/pages/my-progress.html',      icon: '📈', label: 'My Progress' },
     { href: _root + '/pages/my-attendance.html',    icon: '✓',  label: 'Attendance' },
     { href: _root + '/pages/belt-progress.html',    icon: '🥋', label: 'Belt Progress' },

@@ -60,13 +60,7 @@
   }
 
   function redirect(role) {
-    const map = {
-      admin:      APP_ROOT + '/pages/admin-dashboard.html',
-      head_coach: APP_ROOT + '/pages/hc-dashboard.html',
-      coach:      APP_ROOT + '/pages/coach-dashboard.html',
-      student:    APP_ROOT + '/pages/student-dashboard.html',
-    };
-    window.location.href = map[role] || APP_ROOT + '/pages/student-dashboard.html';
+    window.location.href = APP_ROOT + '/pages/dashboard.html';
   }
 
   const btn   = document.getElementById('login-btn');
