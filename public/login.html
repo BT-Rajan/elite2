@@ -33,7 +33,14 @@
           Password
           <a href="pages/forgot-password.html" class="text-accent" style="float:right;font-weight:400">Forgot password?</a>
         </label>
-        <input type="password" id="password" class="input" placeholder="••••••••" autocomplete="current-password" required>
+        <div style="position:relative">
+          <input type="password" id="password" class="input" placeholder="••••••••" autocomplete="current-password" required style="padding-right:2.75rem">
+          <button type="button" id="toggle-pw" aria-label="Show password"
+            style="position:absolute;right:0.625rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--color-text-3);padding:0.25rem;line-height:1;font-size:1rem"
+            onmouseenter="this.style.color='var(--color-text-2)'" onmouseleave="this.style.color='var(--color-text-3)'">
+            &#x1F441;
+          </button>
+        </div>
       </div>
 
       <div id="login-error" class="form-error hidden"></div>
@@ -66,6 +73,15 @@
   const err   = document.getElementById('login-error');
   const email = document.getElementById('email');
   const pass  = document.getElementById('password');
+  const togglePw = document.getElementById('toggle-pw');
+  if (togglePw) {
+    togglePw.addEventListener('click', () => {
+      const shown = pass.type === 'text';
+      pass.type = shown ? 'password' : 'text';
+      togglePw.textContent = shown ? '\u{1F441}' : '\u{1F648}';
+      togglePw.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+    });
+  }
 
   function showError(msg) {
     err.textContent = msg;

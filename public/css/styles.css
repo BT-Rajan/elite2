@@ -196,12 +196,15 @@ input, select, textarea { font-family: inherit; }
   padding: var(--space-2) var(--space-2);
   margin-top: var(--space-1);
   border-radius: var(--radius-md);
-  background: none;
+  background: transparent;
   border: none;
   cursor: pointer;
   color: var(--color-text-2);
   font-size: var(--text-sm);
-  transition: background var(--transition-fast);
+  font-family: var(--font-ui);
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
   text-align: left;
 }
 .sidebar-logout:hover {
