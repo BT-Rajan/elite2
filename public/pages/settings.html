@@ -7,22 +7,20 @@
   <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
-<div class="shell">
-  <div class="main">
-    <div class="page">
+<div class="page">
 
-      <div class="page-header">
-        <div class="page-title">Settings</div>
-        <div class="page-subtitle">Academy configuration and system defaults</div>
-      </div>
-
-      <div id="settings-form">
-        <div class="skeleton skeleton-card mb-4"></div>
-        <div class="skeleton skeleton-card"></div>
-      </div>
-
+  <div class="page-header">
+    <div>
+      <div class="page-title">Settings</div>
+      <div class="page-subtitle">Academy configuration and system defaults</div>
     </div>
   </div>
+
+  <div id="settings-wrap">
+    <div class="skeleton skeleton-card mb-4"></div>
+    <div class="skeleton skeleton-card"></div>
+  </div>
+
 </div>
 
 <script type="module">
@@ -34,109 +32,113 @@
   guardAuth(['admin']);
   await initShell({ title: 'Settings' });
 
-  const { data, error } = await api.admin.settings();
-  if (error) { document.getElementById('settings-form').innerHTML = ui.empty('⚠','Error loading settings',error); return; }
+  async function load() {
+    const { data, error } = await api.admin.settings();
 
-  const s = data.settings || {};
+    if (error) {
+      document.getElementById('settings-wrap').innerHTML = ui.empty('⚠', 'Error loading settings', error);
+      return;
+    }
 
-  document.getElementById('settings-form').innerHTML = `
-    <!-- Academy branding -->
-    <div class="card mb-6">
-      <div class="card-header"><div class="card-title">Academy</div></div>
-      <div class="form-grid form-grid-2" style="gap:1rem">
-        <div class="form-group">
-          <label>Academy Name</label>
-          <input class="input" id="s-name" value="${s.academy_name || ''}">
-        </div>
-        <div class="form-group">
-          <label>Email (From)</label>
-          <input class="input" id="s-email" value="${s.email_from || ''}">
+    const s = data.settings || {};
+
+    document.getElementById('settings-wrap').innerHTML = `
+      <div class="card mb-6">
+        <div class="card-header"><div class="card-title">Academy</div></div>
+        <div class="form-grid form-grid-2" style="gap:1rem">
+          <div class="form-group">
+            <label>Academy Name</label>
+            <input class="input" id="s-name" value="${s.academy_name || ''}">
+          </div>
+          <div class="form-group">
+            <label>Email (From)</label>
+            <input class="input" id="s-email" value="${s.email_from || ''}">
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Gamification -->
-    <div class="card mb-6">
-      <div class="card-header"><div class="card-title">Points & Gamification</div></div>
-      <div class="form-grid form-grid-3" style="gap:1rem">
-        <div class="form-group">
-          <label>Points per Attendance</label>
-          <input type="number" class="input" id="s-pts-att" value="${s.points_attendance || 10}" min="0">
-        </div>
-        <div class="form-group">
-          <label>Points — Perfect Month</label>
-          <input type="number" class="input" id="s-pts-perf" value="${s.points_perfect_month || 100}" min="0">
-        </div>
-        <div class="form-group">
-          <label>Points per Seminar</label>
-          <input type="number" class="input" id="s-pts-sem" value="${s.points_seminar || 50}" min="0">
-        </div>
-        <div class="form-group">
-          <label>Points per Promotion</label>
-          <input type="number" class="input" id="s-pts-promo" value="${s.points_promotion || 200}" min="0">
-        </div>
-        <div class="form-group">
-          <label>Late Attendance Credit</label>
-          <input type="number" class="input" id="s-late" value="${s.attendance_late_credit || 0.5}" min="0" max="1" step="0.1">
-          <div class="form-help">Fraction of a session (0–1)</div>
+      <div class="card mb-6">
+        <div class="card-header"><div class="card-title">Points & Gamification</div></div>
+        <div class="form-grid form-grid-3" style="gap:1rem">
+          <div class="form-group">
+            <label>Points per Attendance</label>
+            <input type="number" class="input" id="s-pts-att" value="${s.points_attendance || 10}" min="0">
+          </div>
+          <div class="form-group">
+            <label>Points — Perfect Month</label>
+            <input type="number" class="input" id="s-pts-perf" value="${s.points_perfect_month || 100}" min="0">
+          </div>
+          <div class="form-group">
+            <label>Points per Seminar</label>
+            <input type="number" class="input" id="s-pts-sem" value="${s.points_seminar || 50}" min="0">
+          </div>
+          <div class="form-group">
+            <label>Points per Promotion</label>
+            <input type="number" class="input" id="s-pts-promo" value="${s.points_promotion || 200}" min="0">
+          </div>
+          <div class="form-group">
+            <label>Late Attendance Credit</label>
+            <input type="number" class="input" id="s-late" value="${s.attendance_late_credit || 0.5}" min="0" max="1" step="0.1">
+            <div class="form-help">Fraction of a session (0–1)</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- WhatsApp / Email integration placeholders -->
-    <div class="card mb-6">
-      <div class="card-header"><div class="card-title">Notifications (Channels)</div></div>
-      <div class="form-grid form-grid-2" style="gap:1rem">
-        <div class="form-group">
-          <label>WhatsApp API Key</label>
-          <input class="input" id="s-wa" type="password" value="${s.whatsapp_api_key || ''}" placeholder="Leave blank to disable">
-        </div>
-        <div class="form-group">
-          <label>SMTP Host</label>
-          <input class="input" id="s-smtp-host" value="${s.smtp_host || ''}">
-        </div>
-        <div class="form-group">
-          <label>SMTP User</label>
-          <input class="input" id="s-smtp-user" value="${s.smtp_user || ''}">
-        </div>
-        <div class="form-group">
-          <label>SMTP Password</label>
-          <input class="input" id="s-smtp-pass" type="password" value="">
+      <div class="card mb-6">
+        <div class="card-header"><div class="card-title">Notification Channels</div></div>
+        <div class="form-grid form-grid-2" style="gap:1rem">
+          <div class="form-group">
+            <label>WhatsApp API Key</label>
+            <input class="input" id="s-wa" type="password" value="${s.whatsapp_api_key || ''}" placeholder="Leave blank to disable">
+          </div>
+          <div class="form-group">
+            <label>SMTP Host</label>
+            <input class="input" id="s-smtp-host" value="${s.smtp_host || ''}">
+          </div>
+          <div class="form-group">
+            <label>SMTP User</label>
+            <input class="input" id="s-smtp-user" value="${s.smtp_user || ''}">
+          </div>
+          <div class="form-group">
+            <label>SMTP Password</label>
+            <input class="input" id="s-smtp-pass" type="password" placeholder="Leave blank to keep existing">
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="flex justify-end gap-3">
-      <button class="btn btn-secondary" onclick="location.reload()">Reset</button>
-      <button class="btn btn-primary" id="save-btn">Save Settings</button>
-    </div>
-  `;
+      <div class="flex justify-end gap-3">
+        <button class="btn btn-secondary" onclick="location.reload()">Reset</button>
+        <button class="btn btn-primary" id="save-btn">Save Settings</button>
+      </div>
+    `;
 
-  document.getElementById('save-btn').addEventListener('click', async () => {
-    const saveBtn = document.getElementById('save-btn');
-    ui.setLoading(saveBtn, true);
+    document.getElementById('save-btn').addEventListener('click', async () => {
+      const saveBtn = document.getElementById('save-btn');
+      ui.setLoading(saveBtn, true);
 
-    const payload = {
-      academy_name:          document.getElementById('s-name').value,
-      email_from:            document.getElementById('s-email').value,
-      points_attendance:     document.getElementById('s-pts-att').value,
-      points_perfect_month:  document.getElementById('s-pts-perf').value,
-      points_seminar:        document.getElementById('s-pts-sem').value,
-      points_promotion:      document.getElementById('s-pts-promo').value,
-      attendance_late_credit:document.getElementById('s-late').value,
-      whatsapp_api_key:      document.getElementById('s-wa').value,
-      smtp_host:             document.getElementById('s-smtp-host').value,
-      smtp_user:             document.getElementById('s-smtp-user').value,
-    };
-    // Only include SMTP pass if it was changed
-    const smtpPass = document.getElementById('s-smtp-pass').value;
-    if (smtpPass) payload.smtp_pass = smtpPass;
+      const payload = {
+        academy_name:           document.getElementById('s-name').value,
+        email_from:             document.getElementById('s-email').value,
+        points_attendance:      document.getElementById('s-pts-att').value,
+        points_perfect_month:   document.getElementById('s-pts-perf').value,
+        points_seminar:         document.getElementById('s-pts-sem').value,
+        points_promotion:       document.getElementById('s-pts-promo').value,
+        attendance_late_credit: document.getElementById('s-late').value,
+        whatsapp_api_key:       document.getElementById('s-wa').value,
+        smtp_host:              document.getElementById('s-smtp-host').value,
+        smtp_user:              document.getElementById('s-smtp-user').value,
+      };
+      const smtpPass = document.getElementById('s-smtp-pass').value;
+      if (smtpPass) payload.smtp_pass = smtpPass;
 
-    const { error } = await api.admin.saveSettings(payload);
-    ui.setLoading(saveBtn, false, 'Save Settings');
-    if (error) { ui.toast.error(error); return; }
-    ui.toast.success('Settings saved.');
-  });
+      const { error } = await api.admin.saveSettings(payload);
+      ui.setLoading(saveBtn, false, 'Save Settings');
+      if (error) { ui.toast.error(error); return; }
+      ui.toast.success('Settings saved.');
+    });
+  }
+
+  load();
 </script>
 </body>
 </html>
