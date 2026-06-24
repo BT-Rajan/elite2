@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — Elite 2.0</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
@@ -31,7 +31,7 @@
       <div class="form-group">
         <label for="password">
           Password
-          <a href="/pages/forgot-password.html" class="text-accent" style="float:right;font-weight:400">Forgot password?</a>
+          <a href="pages/forgot-password.html" class="text-accent" style="float:right;font-weight:400">Forgot password?</a>
         </label>
         <input type="password" id="password" class="input" placeholder="••••••••" autocomplete="current-password" required>
       </div>
@@ -45,7 +45,7 @@
 </div>
 
 <script type="module">
-  import api, { store } from '/js/api.js';
+  import api, { store } from './js/api.js';
 
   // Already logged in → redirect
   if (store.accessToken && store.user) {

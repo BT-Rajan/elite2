@@ -4,7 +4,15 @@
  * Handles auth headers, token refresh, and error normalisation.
  */
 
-const API_BASE = '/api';
+// Derive base paths from this script's URL so the app works at any sub-path
+// (e.g. http://localhost/elite2/ or http://localhost/)
+const _publicRoot = (() => {
+  try {
+    return new URL(import.meta.url).pathname.replace(/\/js\/api\.js$/, '');
+  } catch { return ''; }
+})();
+const API_BASE   = _publicRoot + '/api';
+const LOGIN_PAGE = _publicRoot + '/login.html';
 
 const store = {
   get accessToken()  { return localStorage.getItem('e2_access'); },
@@ -37,7 +45,7 @@ async function _refreshAccessToken() {
 
     if (!res.ok) {
       store.clear();
-      window.location.href = '/login.html';
+      window.location.href = LOGIN_PAGE;
       throw new Error('Session expired');
     }
 

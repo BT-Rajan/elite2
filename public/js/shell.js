@@ -9,41 +9,41 @@ import ui from './ui.js';
 
 const NAV = {
   admin: [
-    { href: '/pages/admin-dashboard.html', icon: '⊞', label: 'Dashboard' },
-    { href: '/pages/users.html',            icon: '👥', label: 'Users' },
-    { href: '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
-    { href: '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
-    { href: '/pages/settings.html',         icon: '⚙', label: 'Settings' },
-    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+    { href: _root + '/pages/admin-dashboard.html', icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/users.html',            icon: '👥', label: 'Users' },
+    { href: _root + '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
+    { href: _root + '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
+    { href: _root + '/pages/settings.html',         icon: '⚙', label: 'Settings' },
+    { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
   head_coach: [
-    { href: '/pages/hc-dashboard.html',     icon: '⊞', label: 'Dashboard' },
-    { href: '/pages/students.html',         icon: '👤', label: 'Students' },
-    { href: '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
-    { href: '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
-    { href: '/pages/evaluations.html',      icon: '📋', label: 'Evaluations' },
-    { href: '/pages/promotions.html',       icon: '⬆', label: 'Promotions' },
-    { href: '/pages/seminars.html',         icon: '🎓', label: 'Seminars' },
-    { href: '/pages/schedule.html',         icon: '📅', label: 'Schedule' },
-    { href: '/pages/reports.html',          icon: '📊', label: 'Reports' },
-    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+    { href: _root + '/pages/hc-dashboard.html',     icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/students.html',         icon: '👤', label: 'Students' },
+    { href: _root + '/pages/coaches.html',          icon: '🏅', label: 'Coaches' },
+    { href: _root + '/pages/disciplines.html',      icon: '🥋', label: 'Curriculum' },
+    { href: _root + '/pages/evaluations.html',      icon: '📋', label: 'Evaluations' },
+    { href: _root + '/pages/promotions.html',       icon: '⬆', label: 'Promotions' },
+    { href: _root + '/pages/seminars.html',         icon: '🎓', label: 'Seminars' },
+    { href: _root + '/pages/schedule.html',         icon: '📅', label: 'Schedule' },
+    { href: _root + '/pages/reports.html',          icon: '📊', label: 'Reports' },
+    { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
   coach: [
-    { href: '/pages/coach-dashboard.html',  icon: '⊞', label: 'Dashboard' },
-    { href: '/pages/schedule.html',         icon: '📅', label: 'My Classes' },
-    { href: '/pages/attendance.html',       icon: '✓',  label: 'Attendance' },
-    { href: '/pages/students.html',         icon: '👤', label: 'Students' },
-    { href: '/pages/evaluations.html',      icon: '📋', label: 'Evaluations' },
-    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+    { href: _root + '/pages/coach-dashboard.html',  icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/schedule.html',         icon: '📅', label: 'My Classes' },
+    { href: _root + '/pages/attendance.html',       icon: '✓',  label: 'Attendance' },
+    { href: _root + '/pages/students.html',         icon: '👤', label: 'Students' },
+    { href: _root + '/pages/evaluations.html',      icon: '📋', label: 'Evaluations' },
+    { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
   student: [
-    { href: '/pages/student-dashboard.html',icon: '⊞', label: 'Dashboard' },
-    { href: '/pages/my-progress.html',      icon: '📈', label: 'My Progress' },
-    { href: '/pages/my-attendance.html',    icon: '✓',  label: 'Attendance' },
-    { href: '/pages/belt-progress.html',    icon: '🥋', label: 'Belt Progress' },
-    { href: '/pages/achievements.html',     icon: '🏆', label: 'Achievements' },
-    { href: '/pages/schedule.html',         icon: '📅', label: 'Schedule' },
-    { href: '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
+    { href: _root + '/pages/student-dashboard.html',icon: '⊞', label: 'Dashboard' },
+    { href: _root + '/pages/my-progress.html',      icon: '📈', label: 'My Progress' },
+    { href: _root + '/pages/my-attendance.html',    icon: '✓',  label: 'Attendance' },
+    { href: _root + '/pages/belt-progress.html',    icon: '🥋', label: 'Belt Progress' },
+    { href: _root + '/pages/achievements.html',     icon: '🏆', label: 'Achievements' },
+    { href: _root + '/pages/schedule.html',         icon: '📅', label: 'Schedule' },
+    { href: _root + '/pages/notifications.html',    icon: '🔔', label: 'Notifications' },
   ],
 };
 
@@ -54,7 +54,7 @@ const NAV = {
 async function initShell(opts = {}) {
   const user = store.user;
   if (!user) {
-    window.location.href = '/login.html';
+    window.location.href = _root + '/login.html';
     return;
   }
 
@@ -164,7 +164,7 @@ function _showUserMenu() {
   menu.style.cssText = 'position:fixed;bottom:72px;left:16px;width:200px;';
 
   menu.innerHTML = `
-    <a href="/pages/profile.html" class="dropdown-item">👤 Profile</a>
+    <a href="${_root}/pages/profile.html" class="dropdown-item">👤 Profile</a>
     <div class="divider" style="margin:4px 0"></div>
     <div class="dropdown-item danger" id="logout-btn">🚪 Sign out</div>
   `;
@@ -174,7 +174,7 @@ function _showUserMenu() {
   document.getElementById('logout-btn').addEventListener('click', async () => {
     await api.auth.logout();
     store.clear();
-    window.location.href = '/login.html';
+    window.location.href = _root + '/login.html';
   });
 
   setTimeout(() => {

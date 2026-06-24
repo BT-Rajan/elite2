@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Curriculum — Elite 2.0</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
 <div class="shell">
@@ -26,10 +26,10 @@
 </div>
 
 <script type="module">
-  import { guardAuth } from '/js/auth-guard.js';
-  import { initShell } from '/js/shell.js';
-  import api from '/js/api.js';
-  import ui from '/js/ui.js';
+  import { guardAuth } from '../js/auth-guard.js';
+  import { initShell } from '../js/shell.js';
+  import api from '../js/api.js';
+  import ui from '../js/ui.js';
 
   guardAuth(['admin','head_coach']);
   await initShell({ title: 'Curriculum' });

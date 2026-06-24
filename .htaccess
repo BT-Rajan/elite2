@@ -9,16 +9,27 @@ Header always set Referrer-Policy "strict-origin-when-cross-origin"
 
 RewriteEngine On
 
-# Pass Authorization header through (needed for JWT on Apache/XAMPP)
-RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+# ── IMPORTANT: change /elite2 to match your actual XAMPP sub-folder name ──────
+# If hosted at http://localhost/elite2/ use:  RewriteBase /elite2
+# If hosted at http://localhost/ use:         RewriteBase /
+RewriteBase /elite2
 
-# Route /api/* to api/index.php
-RewriteCond %{REQUEST_URI} ^/api/
+# Pass Authorization header through — Apache/XAMPP strips it by default
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule .* - [E=REDIRECT_HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# 1. Route api/* → api/index.php
 RewriteRule ^api/(.*)$ api/index.php [L,QSA]
 
-# Serve public/* directly
+# 2. Serve real files (css, js, images, html in public/) directly
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 
-# All other requests → public/index.html (SPA)
+# 3. Map css|js|pages|uploads/* → public/* (browser URL stays at /elite2/)
+RewriteRule ^(css|js|pages|uploads)/(.+)$ public/$1/$2 [L]
+
+# 4. login.html → public/login.html
+RewriteRule ^login\.html$ public/login.html [L]
+
+# 5. Everything else (bare /) → public/index.html (SPA entry)
 RewriteRule ^ public/index.html [L]

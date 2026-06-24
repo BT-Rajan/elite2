@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard — Elite 2.0</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
 <div class="shell">
@@ -20,7 +20,7 @@
       <div class="card mb-6">
         <div class="card-header">
           <div class="card-title">Today's Classes</div>
-          <a href="/pages/schedule.html" class="btn btn-ghost btn-sm">Full schedule</a>
+          <a href="schedule.html" class="btn btn-ghost btn-sm">Full schedule</a>
         </div>
         <div id="today-classes"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row mt-2"></div></div>
       </div>
@@ -36,10 +36,10 @@
 </div>
 
 <script type="module">
-  import { guardAuth } from '/js/auth-guard.js';
-  import { initShell } from '/js/shell.js';
-  import api, { store } from '/js/api.js';
-  import ui from '/js/ui.js';
+  import { guardAuth } from '../js/auth-guard.js';
+  import { initShell } from '../js/shell.js';
+  import api, { store } from '../js/api.js';
+  import ui from '../js/ui.js';
 
   const user = guardAuth(['coach']);
   await initShell({ title: 'Dashboard' });

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard — Elite 2.0</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
 <div class="shell">
@@ -25,11 +25,11 @@
         <div class="card">
           <div class="card-header"><div class="card-title">Quick Actions</div></div>
           <div class="flex flex-col gap-3">
-            <a href="/pages/users.html" class="btn btn-secondary w-full" style="justify-content:flex-start">👥 Manage Users</a>
-            <a href="/pages/disciplines.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🥋 Curriculum Settings</a>
-            <a href="/pages/coaches.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🏅 Coach Assignments</a>
-            <a href="/pages/settings.html" class="btn btn-secondary w-full" style="justify-content:flex-start">⚙ System Settings</a>
-            <a href="/pages/seminars.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🎓 Seminars</a>
+            <a href="users.html" class="btn btn-secondary w-full" style="justify-content:flex-start">👥 Manage Users</a>
+            <a href="disciplines.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🥋 Curriculum Settings</a>
+            <a href="coaches.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🏅 Coach Assignments</a>
+            <a href="settings.html" class="btn btn-secondary w-full" style="justify-content:flex-start">⚙ System Settings</a>
+            <a href="seminars.html" class="btn btn-secondary w-full" style="justify-content:flex-start">🎓 Seminars</a>
           </div>
         </div>
 
@@ -49,10 +49,10 @@
 </div>
 
 <script type="module">
-  import { guardAuth } from '/js/auth-guard.js';
-  import { initShell } from '/js/shell.js';
-  import api, { store } from '/js/api.js';
-  import ui from '/js/ui.js';
+  import { guardAuth } from '../js/auth-guard.js';
+  import { initShell } from '../js/shell.js';
+  import api, { store } from '../js/api.js';
+  import ui from '../js/ui.js';
 
   const user = guardAuth(['admin']);
   await initShell({ title: 'Admin Dashboard' });
@@ -104,7 +104,7 @@
       <span class="font-mono">${settings.attendance_late_credit || 0.5}×</span>
     </div>
     <div class="mt-4">
-      <a href="/pages/settings.html" class="btn btn-secondary w-full">Edit Settings</a>
+      <a href="settings.html" class="btn btn-secondary w-full">Edit Settings</a>
     </div>
   `;
 </script>
