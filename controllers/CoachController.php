@@ -372,48 +372,63 @@ final class CoachController extends Controller
         $this->requireRole('admin', 'head_coach');
 
         $totalStudents = (int)$this->db->query("SELECT COUNT(*) FROM users WHERE role='student' AND is_active=1")->fetchColumn();
-        $totalCoaches  = (int)$this->db->query("SELECT COUNT(*) FROM users WHERE role='coach' AND is_active=1")->fetchColumn();
+        $totalCoaches  = (int)$this->db->query("SELECT COUNT(*) FROM users WHERE role='coach'   AND is_active=1")->fetchColumn();
         $pendingPromos = (int)$this->db->query("SELECT COUNT(*) FROM promotions WHERE status='pending'")->fetchColumn();
-        $avgAttendance = $this->db->query("
-            SELECT ROUND(AVG(pct),1) FROM (
-                SELECT student_id,
-                       ROUND(SUM(CASE WHEN status='present' THEN 1 WHEN status='late' THEN 0.5 ELSE 0 END)/COUNT(*)*100,1) pct
-                FROM attendance att
-                JOIN attendance_sessions ass ON ass.id=att.session_id
-                WHERE ass.session_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-                GROUP BY student_id
-            ) t
-        ")->fetchColumn();
 
-        // Promotion-ready students
+        // Average attendance last 30 days — use double-wrap to avoid MySQL alias restriction
+        $avgRow = $this->db->query("
+            SELECT ROUND(AVG(pct), 1)
+            FROM (
+                SELECT
+                    att.student_id,
+                    ROUND(
+                        SUM(CASE WHEN att.status='present' THEN 1 WHEN att.status='late' THEN 0.5 ELSE 0 END)
+                        / COUNT(*) * 100
+                    , 1) AS pct
+                FROM attendance att
+                INNER JOIN attendance_sessions s ON s.id = att.session_id
+                WHERE s.session_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                GROUP BY att.student_id
+            ) sub
+        ")->fetchColumn();
+        $avgAttendance = round((float)$avgRow, 1);
+
+        // Promotion-ready students (pending promotions)
         $ready = $this->db->query("
             SELECT u.id, CONCAT(u.first_name,' ',u.last_name) AS name,
                    b.name AS current_belt, b.color_hex
-            FROM users u
-            JOIN student_profiles sp ON sp.user_id=u.id
-            LEFT JOIN belts b ON b.id=sp.current_belt_id
-            WHERE u.role='student' AND u.is_active=1
+            FROM promotions p
+            JOIN users u ON u.id = p.student_id
+            JOIN student_profiles sp ON sp.user_id = u.id
+            LEFT JOIN belts b ON b.id = sp.current_belt_id
+            WHERE p.status = 'pending' AND u.is_active = 1
+            ORDER BY p.created_at DESC
             LIMIT 5
         ")->fetchAll();
 
-        // Low attendance
+        // Low attendance students (< 70% last 30 days)
         $lowAtt = $this->db->query("
             SELECT u.id, CONCAT(u.first_name,' ',u.last_name) AS name,
-                   ROUND(SUM(CASE WHEN att.status='present' THEN 1 WHEN att.status='late' THEN 0.5 ELSE 0 END)/COUNT(*)*100,1) AS pct
+                   ROUND(
+                       SUM(CASE WHEN att.status='present' THEN 1 WHEN att.status='late' THEN 0.5 ELSE 0 END)
+                       / COUNT(*) * 100
+                   , 1) AS pct
             FROM users u
-            JOIN attendance att ON att.student_id=u.id
-            JOIN attendance_sessions ass ON ass.id=att.session_id
-            WHERE u.role='student' AND u.is_active=1
-              AND ass.session_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY u.id HAVING pct < 70
-            ORDER BY pct ASC LIMIT 5
+            INNER JOIN attendance att ON att.student_id = u.id
+            INNER JOIN attendance_sessions s ON s.id = att.session_id
+            WHERE u.role = 'student' AND u.is_active = 1
+              AND s.session_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            GROUP BY u.id, u.first_name, u.last_name
+            HAVING pct < 70
+            ORDER BY pct ASC
+            LIMIT 5
         ")->fetchAll();
 
         $this->ok([
-            'totals' => ['students' => $totalStudents, 'coaches' => $totalCoaches, 'pending_promotions' => $pendingPromos],
-            'avg_attendance_30d'  => (float)$avgAttendance,
-            'promotion_pipeline'  => $ready,
-            'low_attendance'      => $lowAtt,
+            'totals'             => ['students' => $totalStudents, 'coaches' => $totalCoaches, 'pending_promotions' => $pendingPromos],
+            'avg_attendance_30d' => $avgAttendance,
+            'promotion_pipeline' => $ready,
+            'low_attendance'     => $lowAtt,
         ]);
     }
 
