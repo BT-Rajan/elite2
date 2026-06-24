@@ -40,8 +40,8 @@ abstract class Controller
 
     // ── Response helpers ───────────────────────────────────────────────────────
 
-    protected function ok(mixed $data): never         { Response::ok($data); }
-    protected function created(mixed $data): never    { Response::created($data); }
+    protected function ok(mixed $data = null): never      { Response::ok($data); }
+    protected function created(mixed $data = null): never { Response::created($data); }
     protected function error(string $m, int $s): never { Response::error($m, $s); }
     protected function notFound(string $m = 'Not found.'): never { Response::notFound($m); }
     protected function forbidden(): never             { Response::forbidden(); }
@@ -79,6 +79,8 @@ abstract class Controller
 
     private function resolveAuth(): ?object
     {
+        // Use token already decoded by AuthMiddleware to avoid double JWT decode
+        if (isset($_REQUEST['_auth'])) return $_REQUEST['_auth'];
         $token = Auth::bearerToken();
         return $token ? Auth::verifyAccessToken($token) : null;
     }

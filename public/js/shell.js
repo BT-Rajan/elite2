@@ -90,20 +90,32 @@ function _renderSidebar(user) {
         </a>`).join('')}
     </nav>
     <div class="sidebar-footer">
-      <div class="sidebar-user" id="user-menu-btn" title="Account menu">
+      <div class="sidebar-user" id="user-menu-btn" title="View profile">
         ${ui.avatar({ name: user.first_name + ' ' + user.last_name, avatar: user.avatar, size: 'sm' })}
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="sidebar-user-name">${user.first_name} ${user.last_name}</div>
           <div class="sidebar-user-role">${user.role.replace('_', ' ')}</div>
         </div>
+        <button class="btn btn-ghost btn-icon btn-sm" id="logout-btn" title="Sign out" style="flex-shrink:0;opacity:0.7">🚪</button>
       </div>
     </div>
   `;
 
   document.body.prepend(sidebar);
 
-  // User menu dropdown
-  document.getElementById('user-menu-btn').addEventListener('click', _showUserMenu);
+  // Logout button — always visible in sidebar footer
+  document.getElementById('logout-btn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await api.auth.logout();
+    store.clear();
+    window.location.href = _root + '/login.html';
+  });
+
+  // User avatar click → profile page
+  document.getElementById('user-menu-btn').addEventListener('click', (e) => {
+    if (e.target.closest('#logout-btn')) return;
+    window.location.href = _root + '/pages/profile.html';
+  });
 }
 
 function _renderTopbar(title) {
@@ -145,8 +157,24 @@ function _initMobileToggle() {
 }
 
 async function _loadNotificationCount() {
+  // Cache for 30 seconds to avoid API hit on every page navigation
+  const CACHE_KEY = 'e2_notif_count';
+  const CACHE_TTL = 30000;
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (cached && Date.now() - cached.ts < CACHE_TTL) {
+      _applyNotifBadge(cached.count);
+      return;
+    }
+  } catch {}
+
   const { data } = await api.notifications.list({ unread: true });
   const count = data?.unread_count || 0;
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ count, ts: Date.now() })); } catch {}
+  _applyNotifBadge(count);
+}
+
+function _applyNotifBadge(count) {
   const badge = document.getElementById('notif-badge');
   if (badge && count > 0) {
     badge.textContent = count > 99 ? '99+' : count;
@@ -154,34 +182,6 @@ async function _loadNotificationCount() {
   }
 }
 
-function _showUserMenu() {
-  const existing = document.getElementById('user-dropdown');
-  if (existing) { existing.remove(); return; }
-
-  const menu = document.createElement('div');
-  menu.className = 'dropdown-menu';
-  menu.id = 'user-dropdown';
-  menu.style.cssText = 'position:fixed;bottom:72px;left:16px;width:200px;';
-
-  menu.innerHTML = `
-    <a href="${_root}/pages/profile.html" class="dropdown-item">👤 Profile</a>
-    <div class="divider" style="margin:4px 0"></div>
-    <div class="dropdown-item danger" id="logout-btn">🚪 Sign out</div>
-  `;
-
-  document.body.appendChild(menu);
-
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await api.auth.logout();
-    store.clear();
-    window.location.href = _root + '/login.html';
-  });
-
-  setTimeout(() => {
-    document.addEventListener('click', function close(e) {
-      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); }
-    });
-  }, 10);
-}
 
 export { initShell };
+

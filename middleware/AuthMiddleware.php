@@ -11,8 +11,11 @@ final class AuthMiddleware
     public function handle(): void
     {
         $token = Auth::bearerToken();
-        if (!$token || !Auth::verifyAccessToken($token)) {
+        $decoded = $token ? Auth::verifyAccessToken($token) : null;
+        if (!$decoded) {
             Response::unauthorized('Valid access token required.');
         }
+        // Share decoded payload so Controller::resolveAuth() skips re-decoding
+        $_REQUEST['_auth'] = $decoded;
     }
 }
