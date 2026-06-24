@@ -92,12 +92,15 @@ function _renderSidebar(user) {
     <div class="sidebar-footer">
       <div class="sidebar-user" id="user-menu-btn" title="View profile">
         ${ui.avatar({ name: user.first_name + ' ' + user.last_name, avatar: user.avatar, size: 'sm' })}
-        <div style="flex:1;min-width:0">
+        <div style="flex:1;min-width:0;overflow:hidden">
           <div class="sidebar-user-name">${user.first_name} ${user.last_name}</div>
           <div class="sidebar-user-role">${user.role.replace('_', ' ')}</div>
         </div>
-        <button class="btn btn-ghost btn-icon btn-sm" id="logout-btn" title="Sign out" style="flex-shrink:0;opacity:0.7">🚪</button>
       </div>
+      <button id="logout-btn" style="display:flex;align-items:center;gap:var(--space-2);width:100%;padding:var(--space-2) var(--space-2);border-radius:var(--radius-md);background:none;border:none;cursor:pointer;color:var(--color-text-2);font-size:var(--text-sm);margin-top:var(--space-1);transition:background var(--transition-fast);"
+        onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='none'">
+        <span>🚪</span><span>Sign out</span>
+      </button>
     </div>
   `;
 

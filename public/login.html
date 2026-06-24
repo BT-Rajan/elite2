@@ -53,13 +53,14 @@
   }
 
   function redirect(role) {
+    const root = new URL('./js/api.js', document.baseURI).pathname.replace(/\/js\/api\.js$/, '');
     const map = {
-      admin:      '/pages/admin-dashboard.html',
-      head_coach: '/pages/hc-dashboard.html',
-      coach:      '/pages/coach-dashboard.html',
-      student:    '/pages/student-dashboard.html',
+      admin:      root + '/pages/admin-dashboard.html',
+      head_coach: root + '/pages/hc-dashboard.html',
+      coach:      root + '/pages/coach-dashboard.html',
+      student:    root + '/pages/student-dashboard.html',
     };
-    window.location.href = map[role] || '/pages/student-dashboard.html';
+    window.location.href = map[role] || root + '/pages/student-dashboard.html';
   }
 
   const btn   = document.getElementById('login-btn');
