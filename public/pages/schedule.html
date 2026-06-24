@@ -5,6 +5,86 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Schedule — Elite 2.0</title>
   <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .cal-grid {
+      display: grid;
+      grid-template-columns: 56px repeat(7, 1fr);
+      gap: 0;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--color-surface);
+    }
+    .cal-head {
+      background: var(--color-surface-2);
+      padding: var(--space-2) var(--space-3);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-2);
+      border-bottom: 1px solid var(--color-border);
+      text-align: center;
+    }
+    .cal-head.today-head {
+      color: var(--color-accent);
+      background: var(--color-accent-dim);
+    }
+    .cal-time-col {
+      border-right: 1px solid var(--color-border);
+    }
+    .cal-time {
+      height: 60px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 4px 8px 0 0;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--color-text-3);
+      border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+    }
+    .cal-col {
+      position: relative;
+      border-right: 1px solid var(--color-border));
+      min-height: 480px;
+    }
+    .cal-col:last-child { border-right: none; }
+    .cal-slot {
+      height: 60px;
+      border-bottom: 1px solid var(--color-border-subtle, rgba(255,255,255,0.05));
+    }
+    .cal-event {
+      position: absolute;
+      left: 3px;
+      right: 3px;
+      border-radius: var(--radius-sm);
+      padding: 4px 6px;
+      font-size: 11px;
+      line-height: 1.3;
+      cursor: pointer;
+      overflow: hidden;
+      transition: filter 0.15s;
+      z-index: 1;
+    }
+    .cal-event:hover { filter: brightness(1.15); }
+    .cal-event-title { font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-event-meta  { color: inherit; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Discipline colour palette */
+    .ev-1 { background: #3b5bdb22; border-left: 3px solid #3b5bdb; color: #a5b4fc; }
+    .ev-2 { background: #2f9e4422; border-left: 3px solid #2f9e44; color: #86efac; }
+    .ev-3 { background: #e6730022; border-left: 3px solid #e67300; color: #fbbf24; }
+    .ev-4 { background: #c9252522; border-left: 3px solid #c92525; color: #fca5a5; }
+    .ev-0 { background: #86868622; border-left: 3px solid #868686; color: #d1d5db; }
+
+    .week-nav { display: flex; align-items: center; gap: var(--space-3); }
+    .week-label { font-size: var(--text-sm); font-weight: var(--weight-medium); min-width: 200px; text-align: center; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .legend-item { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-2); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  </style>
 </head>
 <body>
 <div class="shell">
@@ -14,152 +94,382 @@
       <div class="page-header flex items-center justify-between">
         <div>
           <div class="page-title">Schedule</div>
-          <div class="page-subtitle">Weekly class timetable</div>
+          <div class="page-subtitle">Weekly class calendar</div>
         </div>
-        <button class="btn btn-primary hidden" id="add-class-btn">+ Add Class</button>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary hidden" id="gcal-btn">📅 Export to Google Calendar</button>
+          <button class="btn btn-primary hidden" id="add-class-btn">+ Add Class</button>
+        </div>
       </div>
 
-      <div id="schedule-grid"></div>
+      <!-- Week navigation -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="week-nav">
+          <button class="btn btn-secondary btn-sm" id="prev-week">← Prev</button>
+          <span class="week-label" id="week-label"></span>
+          <button class="btn btn-secondary btn-sm" id="next-week">Next →</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="today-btn">Today</button>
+      </div>
+
+      <!-- Legend -->
+      <div class="legend" id="legend"></div>
+
+      <!-- Calendar -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="calendar-wrap">
+          <div style="padding:2rem;text-align:center">
+            <div class="skeleton skeleton-card"></div>
+          </div>
+        </div>
+      </div>
 
     </div>
   </div>
 </div>
 
 <script type="module">
-  import { guardAuth } from '../js/auth-guard.js';
+  import { guardAuth }  from '../js/auth-guard.js';
   import { initShell } from '../js/shell.js';
-  import api from '../js/api.js';
-  import ui from '../js/ui.js';
+  import api            from '../js/api.js';
+  import ui             from '../js/ui.js';
+  import { APP_ROOT }   from '../js/api.js';
 
   const user = guardAuth();
   await initShell({ title: 'Schedule' });
 
   if (['admin','head_coach'].includes(user.role)) {
     document.getElementById('add-class-btn').classList.remove('hidden');
+    document.getElementById('gcal-btn').classList.remove('hidden');
+  } else if (user.role === 'student') {
+    document.getElementById('gcal-btn').classList.remove('hidden');
   }
 
-  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const TODAY = new Date().getDay();
+  const DAYS      = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const HOURS     = Array.from({ length: 14 }, (_, i) => i + 7); // 07:00–20:00
+  const DISC_COLS = ['ev-0','ev-1','ev-2','ev-3','ev-4'];
+
+  // ── Week offset state ────────────────────────────────────────
+  let weekOffset = 0;
+
+  function weekStart(offset = 0) {
+    const d = new Date();
+    d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - d.getDay() + offset * 7);
+    return d;
+  }
+
+  function fmtDate(d) {
+    return d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+  }
+
+  // ── Load & render ────────────────────────────────────────────
+  let allClasses = [];
 
   const { data, error } = await api.classes.list();
-  const classes = data?.classes || [];
+  allClasses = data?.classes || [];
 
-  const scheduleEl = document.getElementById('schedule-grid');
-
-  if (error) { scheduleEl.innerHTML = ui.empty('⚠','Failed to load',error); return; }
-  if (classes.length === 0) {
-    scheduleEl.innerHTML = ui.empty('📅','No classes scheduled','Classes can be added by a Head Coach or Admin.');
-    return;
+  if (error) {
+    document.getElementById('calendar-wrap').innerHTML = ui.empty('⚠','Failed to load schedule', error);
+  } else {
+    buildLegend(allClasses);
+    render();
   }
 
-  // Group by day
-  const byDay = {};
-  DAYS.forEach((d, i) => { byDay[i] = []; });
-  classes.forEach(c => { byDay[parseInt(c.day_of_week)]?.push(c); });
+  function buildLegend(classes) {
+    const disciplines = [...new Map(classes.map(c => [c.discipline_id, { id: c.discipline_id, name: c.discipline_name }])).values()];
+    document.getElementById('legend').innerHTML = disciplines.map(d =>
+      `<div class="legend-item">
+        <div class="legend-dot" style="background:${discColor(d.id)}"></div>
+        <span>${d.name}</span>
+      </div>`
+    ).join('');
+  }
 
-  scheduleEl.innerHTML = DAYS.map((day, dow) => {
-    const dayClasses = byDay[dow] || [];
-    const isToday = dow === TODAY;
-    return `
-      <div class="card mb-4 ${isToday ? 'card-today' : ''}">
-        <div class="card-header">
-          <div class="flex items-center gap-2">
-            <div class="card-title">${day}</div>
-            ${isToday ? `<span class="badge badge-purple">Today</span>` : ''}
-          </div>
-          <span class="text-xs text-dimmed">${dayClasses.length} class${dayClasses.length !== 1 ? 'es' : ''}</span>
-        </div>
-        ${dayClasses.length === 0
-          ? `<div class="text-sm text-dimmed" style="text-align:center;padding:1rem">No classes</div>`
-          : dayClasses.map(c => `
-              <div class="flex items-center gap-4" style="padding:0.75rem 0;border-bottom:1px solid var(--color-border)">
-                <div style="width:80px;flex-shrink:0;text-align:center">
-                  <div class="font-mono text-sm text-accent">${c.start_time.slice(0,5)}</div>
-                  <div class="text-xs text-dimmed">${c.end_time.slice(0,5)}</div>
-                </div>
-                <div class="flex-1">
-                  <div class="font-medium text-sm">${c.title}</div>
-                  <div class="text-xs text-dimmed">${c.discipline_name} · ${c.coach_name}${c.location ? ' · ' + c.location : ''}</div>
-                </div>
-                ${user.role === 'coach' && isToday ? `
-                  <button class="btn btn-primary btn-sm" onclick="openAttendance(${c.id})">Take Attendance</button>
-                ` : ''}
-              </div>`).join('')}
+  function discColor(id) {
+    const palette = ['#868686','#3b5bdb','#2f9e44','#e67300','#c92525'];
+    return palette[id % palette.length] || palette[0];
+  }
+
+  function render() {
+    const ws = weekStart(weekOffset);
+    const we = new Date(ws); we.setDate(we.getDate() + 6);
+    document.getElementById('week-label').textContent = `${fmtDate(ws)} – ${fmtDate(we)}`;
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    // Build calendar HTML
+    let html = `<div class="cal-grid">`;
+
+    // Header row
+    html += `<div class="cal-head cal-time-col"></div>`;
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(ws); date.setDate(ws.getDate() + d);
+      const isToday = date.getTime() === today.getTime();
+      const dow = date.getDay(); // 0=Sun..6=Sat
+      html += `<div class="cal-head${isToday ? ' today-head' : ''}">
+        ${DAYS[dow]}<br>
+        <span style="font-size:11px;font-weight:400;opacity:0.7">${date.getDate()}</span>
       </div>`;
-  }).join('');
+    }
 
-  window.openAttendance = async (classId) => {
-    const today = new Date().toISOString().split('T')[0];
-    const { data, error } = await api.attendance.open(classId, today);
-    if (error && !error.includes('already open')) { ui.toast.error(error); return; }
-    const sessionId = data?.id || null;
-    window.location.href = `/pages/attendance.html${sessionId ? '?session=' + sessionId : ''}`;
+    // Time rows + event columns
+    // Collect events per column (dow 0-6)
+    const byDow = Object.fromEntries([0,1,2,3,4,5,6].map(d => [d, []]));
+    allClasses.forEach(c => { byDow[parseInt(c.day_of_week)]?.push(c); });
+
+    // Time axis + 7 day columns
+    html += `<div class="cal-time-col">`;
+    HOURS.forEach(h => {
+      html += `<div class="cal-time">${String(h).padStart(2,'0')}:00</div>`;
+    });
+    html += `</div>`;
+
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(ws); date.setDate(ws.getDate() + d);
+      const dow  = date.getDay();
+      const colClasses = byDow[dow] || [];
+
+      html += `<div class="cal-col" style="position:relative">`;
+      // Background slots
+      HOURS.forEach(() => { html += `<div class="cal-slot"></div>`; });
+
+      // Events
+      colClasses.forEach(c => {
+        const [sh, sm] = c.start_time.split(':').map(Number);
+        const [eh, em] = c.end_time.split(':').map(Number);
+        const startMin = (sh - 7) * 60 + sm;
+        const endMin   = (eh - 7) * 60 + em;
+        const top      = (startMin / 60) * 60;
+        const height   = Math.max(((endMin - startMin) / 60) * 60, 30);
+        const evClass  = DISC_COLS[(c.discipline_id || 0) % DISC_COLS.length];
+
+        html += `<div class="cal-event ${evClass}" style="top:${top}px;height:${height}px"
+          onclick="showDetail(${c.id})" title="${c.title}">
+          <div class="cal-event-title">${c.title}</div>
+          <div class="cal-event-meta">${c.start_time.slice(0,5)}–${c.end_time.slice(0,5)}</div>
+          <div class="cal-event-meta">${c.location || ''}</div>
+        </div>`;
+      });
+
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+    document.getElementById('calendar-wrap').innerHTML = html;
+  }
+
+  // ── Week navigation ──────────────────────────────────────────
+  document.getElementById('prev-week').addEventListener('click', () => { weekOffset--; render(); });
+  document.getElementById('next-week').addEventListener('click', () => { weekOffset++; render(); });
+  document.getElementById('today-btn').addEventListener('click', () => { weekOffset = 0; render(); });
+
+  // ── Class detail modal ────────────────────────────────────────
+  window.showDetail = (id) => {
+    const c = allClasses.find(x => x.id === id);
+    if (!c) return;
+
+    const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const { body, close } = ui.modal({ title: c.title, size: 'lg' });
+
+    body.innerHTML = `
+      <div class="form-grid form-grid-2" style="gap:1rem;margin-bottom:1.5rem">
+        <div><div class="text-xs text-dimmed mb-1">Day</div><div class="font-medium">${DAYS_FULL[c.day_of_week]}</div></div>
+        <div><div class="text-xs text-dimmed mb-1">Time</div><div class="font-medium font-mono">${c.start_time.slice(0,5)} – ${c.end_time.slice(0,5)}</div></div>
+        <div><div class="text-xs text-dimmed mb-1">Discipline</div><div class="font-medium">${c.discipline_name}</div></div>
+        <div><div class="text-xs text-dimmed mb-1">Coach</div><div class="font-medium">${c.coach_name}</div></div>
+        <div><div class="text-xs text-dimmed mb-1">Location</div><div class="font-medium">${c.location || '—'}</div></div>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn btn-secondary" id="gcal-single-btn">📅 Add to Google Calendar</button>
+        ${user.role === 'coach' ? `<button class="btn btn-primary" id="attend-btn">✓ Take Attendance</button>` : ''}
+        ${['admin','head_coach'].includes(user.role) ? `<button class="btn btn-ghost" id="edit-cls-btn">✏ Edit</button>` : ''}
+      </div>
+    `;
+
+    // Single class Google Calendar export
+    document.getElementById('gcal-single-btn').addEventListener('click', () => {
+      exportToGCal([c]);
+      close();
+    });
+
+    if (user.role === 'coach') {
+      document.getElementById('attend-btn').addEventListener('click', async () => {
+        const today = new Date().toISOString().split('T')[0];
+        const { data, error } = await api.attendance.open(c.id, today);
+        if (error && !error.includes('already open')) { ui.toast.error(error); return; }
+        const sid = data?.id || '';
+        window.location.href = `attendance.html${sid ? '?session=' + sid : ''}`;
+      });
+    }
+
+    if (['admin','head_coach'].includes(user.role)) {
+      document.getElementById('edit-cls-btn').addEventListener('click', () => {
+        close();
+        openEditModal(c);
+      });
+    }
   };
 
-  // ── Add class modal ────────────────────────────────────────────────────────
-  document.getElementById('add-class-btn').addEventListener('click', async () => {
+  // ── Google Calendar export ────────────────────────────────────
+  function exportToGCal(classes) {
+    if (classes.length === 0) { ui.toast.error('No classes to export.'); return; }
+
+    // For recurring weekly classes, create Google Calendar links
+    // Opens each class in a new tab as a Google Calendar event
+    const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    classes.forEach(c => {
+      // Find the next occurrence of this day
+      const today = new Date();
+      const dow   = parseInt(c.day_of_week);
+      const diff  = (dow - today.getDay() + 7) % 7 || 7;
+      const next  = new Date(today);
+      next.setDate(today.getDate() + diff);
+
+      const [sh, sm] = c.start_time.split(':').map(Number);
+      const [eh, em] = c.end_time.split(':').map(Number);
+
+      const pad = n => String(n).padStart(2,'0');
+      const dateStr = `${next.getFullYear()}${pad(next.getMonth()+1)}${pad(next.getDate())}`;
+      const startStr = `${dateStr}T${pad(sh)}${pad(sm)}00`;
+      const endStr   = `${dateStr}T${pad(eh)}${pad(em)}00`;
+
+      const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text:   `${c.title} — Elite 2.0`,
+        dates:  `${startStr}/${endStr}`,
+        details: `Discipline: ${c.discipline_name}\nCoach: ${c.coach_name}`,
+        location: c.location || 'Elite 2.0 Academy',
+        recur:  'RRULE:FREQ=WEEKLY',
+      });
+
+      window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
+    });
+
+    ui.toast.success(`Opened ${classes.length} class${classes.length > 1 ? 'es' : ''} in Google Calendar.`);
+  }
+
+  // Export all classes button
+  document.getElementById('gcal-btn').addEventListener('click', () => {
+    if (allClasses.length === 0) { ui.toast.error('No classes to export.'); return; }
+    if (allClasses.length > 3) {
+      const { body, close } = ui.modal({ title: 'Export to Google Calendar' });
+      body.innerHTML = `
+        <p class="text-sm text-muted mb-4">This will open ${allClasses.length} Google Calendar tabs — one per class. Your browser may block pop-ups.</p>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="gcal-cancel">Cancel</button>
+          <button class="btn btn-primary" id="gcal-confirm">Export All</button>
+        </div>`;
+      document.getElementById('gcal-cancel').onclick = close;
+      document.getElementById('gcal-confirm').onclick = () => { close(); exportToGCal(allClasses); };
+    } else {
+      exportToGCal(allClasses);
+    }
+  });
+
+  // ── Add class modal ───────────────────────────────────────────
+  document.getElementById('add-class-btn').addEventListener('click', () => openAddModal());
+
+  async function openAddModal() {
     const [discRes, coachRes] = await Promise.all([api.admin.disciplines(), api.admin.coaches()]);
     const disciplines = discRes.data?.disciplines || [];
     const coaches     = coachRes.data?.coaches    || [];
+    const DAYS_FULL   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
     const { body, close } = ui.modal({ title: 'Add Class', size: 'lg' });
-    body.innerHTML = `
+    body.innerHTML = classForm({ disciplines, coaches, DAYS_FULL });
+    wireClassForm(body, close, null, disciplines, coaches, DAYS_FULL);
+  }
+
+  async function openEditModal(cls) {
+    const [discRes, coachRes] = await Promise.all([api.admin.disciplines(), api.admin.coaches()]);
+    const disciplines = discRes.data?.disciplines || [];
+    const coaches     = coachRes.data?.coaches    || [];
+    const DAYS_FULL   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    const { body, close } = ui.modal({ title: 'Edit Class', size: 'lg' });
+    body.innerHTML = classForm({ disciplines, coaches, DAYS_FULL, cls });
+    wireClassForm(body, close, cls, disciplines, coaches, DAYS_FULL);
+  }
+
+  function classForm({ disciplines, coaches, DAYS_FULL, cls = null }) {
+    return `
       <div class="form-grid form-grid-2" style="gap:1rem">
-        <div class="form-group"><label>Title</label><input class="input" id="c-title" placeholder="Class title"></div>
+        <div class="form-group">
+          <label>Title</label>
+          <input class="input" id="c-title" placeholder="Class title" value="${cls?.title || ''}">
+        </div>
         <div class="form-group">
           <label>Discipline</label>
           <select class="select" id="c-disc">
             <option value="">Select discipline</option>
-            ${disciplines.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+            ${disciplines.map(d => `<option value="${d.id}" ${cls?.discipline_id == d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label>Coach</label>
           <select class="select" id="c-coach">
             <option value="">Select coach</option>
-            ${coaches.map(c => `<option value="${c.id}">${c.first_name} ${c.last_name}</option>`).join('')}
+            ${coaches.map(c => `<option value="${c.id}" ${cls?.coach_id == c.id ? 'selected' : ''}>${c.first_name} ${c.last_name}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label>Day</label>
           <select class="select" id="c-day">
-            ${DAYS.map((d,i) => `<option value="${i}">${d}</option>`).join('')}
+            ${DAYS_FULL.map((d,i) => `<option value="${i}" ${cls?.day_of_week == i ? 'selected' : ''}>${d}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group"><label>Start Time</label><input type="time" class="input" id="c-start" value="09:00"></div>
-        <div class="form-group"><label>End Time</label><input type="time" class="input" id="c-end" value="10:00"></div>
-        <div class="form-group" style="grid-column:1/-1"><label>Location</label><input class="input" id="c-loc" placeholder="Room / mat area (optional)"></div>
+        <div class="form-group">
+          <label>Start Time</label>
+          <input type="time" class="input" id="c-start" value="${cls?.start_time?.slice(0,5) || '09:00'}">
+        </div>
+        <div class="form-group">
+          <label>End Time</label>
+          <input type="time" class="input" id="c-end" value="${cls?.end_time?.slice(0,5) || '10:00'}">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Location</label>
+          <input class="input" id="c-loc" placeholder="Room / mat area (optional)" value="${cls?.location || ''}">
+        </div>
       </div>
       <div class="form-error hidden" id="c-err"></div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="c-cancel">Cancel</button>
-        <button class="btn btn-primary" id="c-save">Add Class</button>
+        <button class="btn btn-primary" id="c-save">${cls ? 'Save Changes' : 'Add Class'}</button>
       </div>`;
+  }
 
-    document.getElementById('c-cancel').onclick = close;
-    document.getElementById('c-save').onclick = async () => {
-      const saveBtn = document.getElementById('c-save');
-      const errEl   = document.getElementById('c-err');
+  function wireClassForm(body, close, cls, disciplines, coaches, DAYS_FULL) {
+    body.querySelector('#c-cancel').onclick = close;
+    body.querySelector('#c-save').onclick = async () => {
+      const saveBtn = body.querySelector('#c-save');
+      const errEl   = body.querySelector('#c-err');
       errEl.classList.add('hidden');
 
+      const payload = {
+        title:         body.querySelector('#c-title').value,
+        discipline_id: parseInt(body.querySelector('#c-disc').value),
+        coach_id:      parseInt(body.querySelector('#c-coach').value),
+        day_of_week:   parseInt(body.querySelector('#c-day').value),
+        start_time:    body.querySelector('#c-start').value,
+        end_time:      body.querySelector('#c-end').value,
+        location:      body.querySelector('#c-loc').value || null,
+      };
+
       ui.setLoading(saveBtn, true);
-      const { error } = await api.classes.create({
-        title:         document.getElementById('c-title').value,
-        discipline_id: parseInt(document.getElementById('c-disc').value),
-        coach_id:      parseInt(document.getElementById('c-coach').value),
-        day_of_week:   parseInt(document.getElementById('c-day').value),
-        start_time:    document.getElementById('c-start').value,
-        end_time:      document.getElementById('c-end').value,
-        location:      document.getElementById('c-loc').value || null,
-      });
-      ui.setLoading(saveBtn, false, 'Add Class');
+      const { error } = cls
+        ? await api.classes.update(cls.id, payload)
+        : await api.classes.create(payload);
+      ui.setLoading(saveBtn, false, cls ? 'Save Changes' : 'Add Class');
 
       if (error) { errEl.textContent = error; errEl.classList.remove('hidden'); return; }
-      ui.toast.success('Class added.');
+      ui.toast.success(cls ? 'Class updated.' : 'Class added.');
       close();
       location.reload();
     };
-  });
+  }
 </script>
 </body>
 </html>
